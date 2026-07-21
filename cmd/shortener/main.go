@@ -8,9 +8,13 @@ import (
 	"strings"
 )
 
-type userURL struct {
+type userUrl struct {
 	inputUrl string
 	shortUrl string
+}
+
+func newUserUrl(i string, s string) userUrl {
+	return userUrl{i, s}
 }
 
 var storage = map[string]string{}
@@ -44,10 +48,10 @@ func generateID() string {
 func mainPage(res http.ResponseWriter, req *http.Request) {
 	if req.Method == http.MethodPost {
 		res.WriteHeader(http.StatusCreated)
-		url := userURL{
+		url := newUserUrl(
 			req.FormValue("longUrl"),
 			generateID(),
-		}
+		)
 		storage[url.inputUrl] = url.shortUrl
 		io.WriteString(res, "http://localhost:8080/"+storage[url.inputUrl])
 	} else {
