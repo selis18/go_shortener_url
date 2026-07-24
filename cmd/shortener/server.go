@@ -4,7 +4,7 @@ import "net/http"
 
 func InitServer() {
 	mux := http.NewServeMux()
-	mux.HandleFunc("/text/plain", mainPage)
+	mux.HandleFunc("/", postUrl)
 	mux.HandleFunc("/", getUrl)
 
 	err := http.ListenAndServe(":8080", mux)

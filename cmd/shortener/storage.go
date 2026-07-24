@@ -23,6 +23,9 @@ func (s StorageRepo) Save(k string, v userUrl) error {
 		return fmt.Errorf("Такая ссылка уже есть!")
 	}
 
+	if _, e := s.storage[v.shortUrl]; e {
+		return s.Save(k, v)
+	}
 	s.storage[k] = v
 	return nil
 }

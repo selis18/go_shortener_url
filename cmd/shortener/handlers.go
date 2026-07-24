@@ -30,14 +30,18 @@ func generateID() string {
 	return id
 }
 
-func mainPage(res http.ResponseWriter, req *http.Request) {
-	if req.Method == http.MethodPost {
-		res.WriteHeader(http.StatusCreated)
+func postUrl(res http.ResponseWriter, req *http.Request) {
+	if req.Method == http.MethodPost && req.FormValue("longUrl") != "" && req.FormValue("longUrl") != " " {
 		url := newUserUrl(
 			req.FormValue("longUrl"),
 			generateID(),
 		)
-		StorageR.Save(url.shortUrl, url)
+		err := StorageR.Save(url.shortUrl, url)
+		if err != nil {
+			res.WriteHeader(http.StatusBadRequest)
+		}
+		res.Header().Set("Content-Type", "text/plain")
+		res.WriteHeader(http.StatusCreated)
 		io.WriteString(res, "http://localhost:8080/"+url.shortUrl)
 	} else {
 		res.WriteHeader(http.StatusBadRequest)
@@ -46,9 +50,15 @@ func mainPage(res http.ResponseWriter, req *http.Request) {
 
 func getUrl(res http.ResponseWriter, req *http.Request) {
 	if req.Method == http.MethodGet {
+		id := req.URL.Path[1:]
+		if id == "" {
+			res.WriteHeader(http.StatusBadRequest)
+		}
 		for k, v := range StorageR.storage {
-			if k == req.URL.Path {
-				http.Redirect(res, req, v.inputUrl, http.StatusTemporaryRedirect)
+			if k == id {
+				//http.Redirect(res, req, v.inputUrl, http.StatusTemporaryRedirect)
+				res.Header().Set("Location", v.inputUrl)
+				res.WriteHeader(http.StatusTemporaryRedirect)
 			}
 		}
 	} else {
