@@ -8,6 +8,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/go-chi/chi"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -89,8 +90,8 @@ func Test_postUrl(t *testing.T) {
 		},
 	}
 	for _, test := range tests {
-		StorageR = NewStorageRepo()
 		t.Run(test.name, func(t *testing.T) {
+			StorageR = NewStorageRepo()
 			data := url.Values{}
 			if test.url != "" {
 				data.Set("longUrl", test.url)
@@ -129,12 +130,18 @@ func Test_getUrl(t *testing.T) {
 	tests := []struct {
 		name string // description of this test case
 		// Named input parameters for target function.
-		id   string
-		want wantGet
+		exist map[string]userUrl
+		id    string
+		want  wantGet
 	}{
 		{
 			name: "simple test",
-			id:   "xxxxx231",
+			exist: map[string]userUrl{
+				"xxxxx231": {
+					inputUrl: "https://practicum.yandex.ru/",
+				},
+			},
+			id: "xxxxx231",
 			want: wantGet{
 				code:     http.StatusTemporaryRedirect,
 				location: "https://practicum.yandex.ru/",
@@ -142,7 +149,12 @@ func Test_getUrl(t *testing.T) {
 		},
 		{
 			name: "exist with long url",
-			id:   "asdqw123",
+			exist: map[string]userUrl{
+				"asdqw123": {
+					inputUrl: "https://practicum.yandex.ru/" + strings.Repeat("a", 1999),
+				},
+			},
+			id: "asdqw123",
 			want: wantGet{
 				code:     http.StatusTemporaryRedirect,
 				location: "https://practicum.yandex.ru/" + strings.Repeat("a", 1999),
@@ -150,7 +162,12 @@ func Test_getUrl(t *testing.T) {
 		},
 		{
 			name: "exist with russian alphabet",
-			id:   "a1231asd",
+			exist: map[string]userUrl{
+				"a1231asd": {
+					"https://яндекс.ру/",
+				},
+			},
+			id: "a1231asd",
 			want: wantGet{
 				code:     http.StatusTemporaryRedirect,
 				location: "https://яндекс.ру/",
@@ -163,24 +180,35 @@ func Test_getUrl(t *testing.T) {
 				code: http.StatusBadRequest,
 			},
 		},
+		{
+			name: "no result",
+			id:   "a1231asd",
+			want: wantGet{
+				code: http.StatusBadRequest,
+			},
+		},
 	}
 
-	StorageR = NewStorageRepo()
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			if test.id != "" && test.want.code == http.StatusTemporaryRedirect {
-				StorageR.storage[test.id] = userUrl{
-					inputUrl: test.want.location,
-					shortUrl: test.id,
-				}
+			StorageR = NewStorageRepo()
+
+			for k, v := range test.exist {
+				StorageR.storage[k] = v
 			}
 			path := "/" + test.id
+
+			r := chi.NewRouter()
+			r.Get("/{id}", getUrl)
+			r.NotFound(func(w http.ResponseWriter, r *http.Request) {
+				w.WriteHeader(http.StatusBadRequest)
+			})
 
 			request := httptest.NewRequest(http.MethodGet, path, nil)
 			request.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 			w := httptest.NewRecorder()
 
-			getUrl(w, request)
+			r.ServeHTTP(w, request)
 
 			res := w.Result()
 			defer res.Body.Close()

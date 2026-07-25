@@ -2,18 +2,20 @@ package main
 
 import (
 	"crypto/rand"
-	"io"
 	"math/big"
 	"net/http"
+	"strings"
+
+	"github.com/go-chi/chi"
+	"github.com/go-chi/render"
 )
 
 type userUrl struct {
 	inputUrl string
-	shortUrl string
 }
 
-func newUserUrl(i string, s string) userUrl {
-	return userUrl{i, s}
+func newUserUrl(i string) userUrl {
+	return userUrl{i}
 }
 
 const alphabet = "abcdefghijkmnopqrstuvwxyzABCDEFGHJKLMNOPQRSTUVWXYZ23456789"
@@ -31,37 +33,36 @@ func generateID() string {
 }
 
 func postUrl(res http.ResponseWriter, req *http.Request) {
-	if req.Method == http.MethodPost && req.FormValue("longUrl") != "" && req.FormValue("longUrl") != " " {
-		url := newUserUrl(
-			req.FormValue("longUrl"),
-			generateID(),
-		)
-		err := StorageR.Save(url.shortUrl, url)
-		if err != nil {
-			res.WriteHeader(http.StatusBadRequest)
-		}
-		res.Header().Set("Content-Type", "text/plain")
-		res.WriteHeader(http.StatusCreated)
-		io.WriteString(res, "http://localhost:8080/"+url.shortUrl)
-	} else {
-		res.WriteHeader(http.StatusBadRequest)
+	url := userUrl{
+		inputUrl: strings.TrimSpace(req.FormValue("longUrl")),
 	}
+
+	if url.inputUrl == "" {
+		res.WriteHeader(http.StatusBadRequest)
+		return
+	}
+
+	shortUrl := generateID()
+	err := StorageR.Save(shortUrl, url)
+	if err != nil {
+		res.WriteHeader(http.StatusBadRequest)
+		return
+	}
+	res.Header().Set("Content-Type", "text/plain")
+	res.WriteHeader(http.StatusCreated)
+	render.PlainText(res, req, "http://localhost:8080/"+shortUrl)
 }
 
 func getUrl(res http.ResponseWriter, req *http.Request) {
-	if req.Method == http.MethodGet {
-		id := req.URL.Path[1:]
-		if id == "" {
-			res.WriteHeader(http.StatusBadRequest)
+	id := chi.URLParam(req, "id")
+	for k, v := range StorageR.storage {
+		if k == id {
+			//http.Redirect(res, req, v.inputUrl, http.StatusTemporaryRedirect)
+			res.Header().Set("Location", v.inputUrl)
+			res.Header().Set("Content-Type", "text/plain")
+			res.WriteHeader(http.StatusTemporaryRedirect)
+			return
 		}
-		for k, v := range StorageR.storage {
-			if k == id {
-				//http.Redirect(res, req, v.inputUrl, http.StatusTemporaryRedirect)
-				res.Header().Set("Location", v.inputUrl)
-				res.WriteHeader(http.StatusTemporaryRedirect)
-			}
-		}
-	} else {
-		res.WriteHeader(http.StatusBadRequest)
 	}
+	res.WriteHeader(http.StatusBadRequest)
 }

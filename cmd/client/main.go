@@ -3,53 +3,40 @@ package main
 import (
 	"bufio"
 	"fmt"
-	"io"
-	"net/http"
 	"net/url"
 	"os"
 	"strings"
+
+	"github.com/go-resty/resty/v2"
 )
 
+type UrlReq struct {
+	Url string
+}
+
 func main() {
-	endpoint := "http://localhost:8080/text/plain"
-	// контейнер данных для запроса
+	endpoint := "http://localhost:8080/"
+
 	data := url.Values{}
-	// приглашение в консоли
 	fmt.Println("Введите длинный URL")
-	// открываем потоковое чтение из консоли
 	reader := bufio.NewReader(os.Stdin)
-	// читаем строку из консоли
 	long, err := reader.ReadString('\n')
 	if err != nil {
 		panic(err)
 	}
 	long = strings.TrimSpace(long)
-	// заполняем контейнер данными
 	data.Set("longUrl", long)
-	// добавляем HTTP-клиент
-	client := &http.Client{}
-	// пишем запрос
-	// запрос методом POST должен, помимо заголовков, содержать тело
-	// тело должно быть источником потокового чтения io.Reader
-	request, err := http.NewRequest(http.MethodPost, endpoint, strings.NewReader(data.Encode()))
-	if err != nil {
-		panic(err)
-	}
-	// в заголовках запроса указываем кодировку
-	request.Header.Add("Content-Type", "application/x-www-form-urlencoded")
-	// отправляем запрос и получаем ответ
-	response, err := client.Do(request)
+	client := resty.New()
+
+	resp, err := client.R().
+		SetHeader("Content-Type", "text/plain").
+		SetBody(strings.NewReader(data.Encode())).
+		Post(endpoint)
+
 	if err != nil {
 		panic(err)
 	}
 	// выводим код ответа
-	fmt.Println("Статус-код ", response.Status)
-	defer response.Body.Close()
-	// читаем поток из тела ответа
-	body, err := io.ReadAll(response.Body)
-	if err != nil {
-		panic(err)
-	}
-	// и печатаем его
-	fmt.Println(string(body))
+	fmt.Println("Статус-код ", resp.Status())
+	fmt.Println(resp.String())
 }

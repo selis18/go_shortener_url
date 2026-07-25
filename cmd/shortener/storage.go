@@ -15,7 +15,7 @@ func NewStorageRepo() *StorageRepo {
 		storage: make(map[string]userUrl),
 	}
 }
-func (s StorageRepo) Save(k string, v userUrl) error {
+func (s *StorageRepo) Save(k string, v userUrl) error {
 	if v.inputUrl == "" {
 		return fmt.Errorf("Ссылка не может быть пустой!")
 	}
@@ -23,14 +23,14 @@ func (s StorageRepo) Save(k string, v userUrl) error {
 		return fmt.Errorf("Такая ссылка уже есть!")
 	}
 
-	if _, e := s.storage[v.shortUrl]; e {
+	if _, e := s.storage[k]; e {
 		return s.Save(k, v)
 	}
 	s.storage[k] = v
 	return nil
 }
 
-func (s StorageRepo) Get(k string) (string, error) {
+func (s *StorageRepo) Get(k string) (string, error) {
 	for key, value := range s.storage {
 		if key == k {
 			return value.inputUrl, nil
