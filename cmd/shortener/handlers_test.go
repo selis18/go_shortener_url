@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/go-chi/chi"
+	"github.com/selis18/go_shortener_url/internal/config"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -114,7 +115,7 @@ func Test_postUrl(t *testing.T) {
 			if test.want.code == http.StatusCreated {
 				assert.Contains(t, res.Header.Get("Content-Type"), test.want.contentType)
 				assert.NotEmpty(t, shortUrl)
-				assert.True(t, strings.HasPrefix(shortUrl, "http://localhost:8080/"))
+				assert.True(t, strings.HasPrefix(shortUrl, config.FlagHost))
 
 			}
 		})

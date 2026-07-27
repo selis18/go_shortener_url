@@ -8,14 +8,11 @@ import (
 
 	"github.com/go-chi/chi"
 	"github.com/go-chi/render"
+	"github.com/selis18/go_shortener_url/internal/config"
 )
 
 type userUrl struct {
 	inputUrl string
-}
-
-func newUserUrl(i string) userUrl {
-	return userUrl{i}
 }
 
 const alphabet = "abcdefghijkmnopqrstuvwxyzABCDEFGHJKLMNOPQRSTUVWXYZ23456789"
@@ -41,7 +38,6 @@ func postUrl(res http.ResponseWriter, req *http.Request) {
 		res.WriteHeader(http.StatusBadRequest)
 		return
 	}
-
 	shortUrl := generateID()
 	err := StorageR.Save(shortUrl, url)
 	if err != nil {
@@ -50,7 +46,7 @@ func postUrl(res http.ResponseWriter, req *http.Request) {
 	}
 	res.Header().Set("Content-Type", "text/plain")
 	res.WriteHeader(http.StatusCreated)
-	render.PlainText(res, req, "http://localhost:8080/"+shortUrl)
+	render.PlainText(res, req, config.FlagHost+shortUrl)
 }
 
 func getUrl(res http.ResponseWriter, req *http.Request) {

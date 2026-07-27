@@ -3,7 +3,6 @@ package main
 import (
 	"bufio"
 	"fmt"
-	"net/url"
 	"os"
 	"strings"
 
@@ -15,9 +14,8 @@ type UrlReq struct {
 }
 
 func main() {
-	endpoint := "http://localhost:8080/"
+	endpoint := "http://localhost:8081/"
 
-	data := url.Values{}
 	fmt.Println("Введите длинный URL")
 	reader := bufio.NewReader(os.Stdin)
 	long, err := reader.ReadString('\n')
@@ -25,14 +23,15 @@ func main() {
 		panic(err)
 	}
 	long = strings.TrimSpace(long)
-	data.Set("longUrl", long)
+
 	client := resty.New()
 
 	resp, err := client.R().
 		SetHeader("Content-Type", "text/plain").
-		SetBody(strings.NewReader(data.Encode())).
+		SetBody(long).
 		Post(endpoint)
 
+	fmt.Printf("Отправляем: %q\n", long)
 	if err != nil {
 		panic(err)
 	}

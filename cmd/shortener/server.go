@@ -1,10 +1,12 @@
 package main
 
 import (
+	"fmt"
 	"net/http"
 
 	"github.com/go-chi/chi"
 	"github.com/go-chi/chi/middleware"
+	"github.com/selis18/go_shortener_url/internal/config"
 )
 
 func InitServer() {
@@ -17,7 +19,8 @@ func InitServer() {
 	})
 	r.Post("/", postUrl)
 
-	err := http.ListenAndServe(":8080", r)
+	fmt.Println("Running server on", config.FlagAddress.String())
+	err := http.ListenAndServe(config.FlagAddress.String(), r)
 	if err != nil {
 		panic(err)
 	}
