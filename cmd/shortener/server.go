@@ -14,9 +14,6 @@ func InitServer() {
 	r.Use(middleware.AllowContentType("text/plain"))
 
 	r.Get("/{id}", getUrl)
-	r.NotFound(func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusBadRequest)
-	})
 	r.Post("/", postUrl)
 
 	fmt.Println("Running server on", config.FlagAddress.String())

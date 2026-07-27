@@ -8,7 +8,6 @@ import (
 	"strings"
 
 	"github.com/go-chi/chi"
-	"github.com/go-chi/render"
 	"github.com/selis18/go_shortener_url/internal/config"
 )
 
@@ -48,7 +47,10 @@ func postUrl(res http.ResponseWriter, req *http.Request) {
 	}
 	res.Header().Set("Content-Type", "text/plain")
 	res.WriteHeader(http.StatusCreated)
-	render.PlainText(res, req, config.FlagHost+shortUrl)
+	_, err = res.Write([]byte(config.FlagHost + shortUrl))
+	if err != nil {
+		return
+	}
 }
 
 func getUrl(res http.ResponseWriter, req *http.Request) {
