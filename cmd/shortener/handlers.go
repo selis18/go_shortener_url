@@ -2,6 +2,7 @@ package main
 
 import (
 	"crypto/rand"
+	"io"
 	"math/big"
 	"net/http"
 	"strings"
@@ -11,9 +12,7 @@ import (
 	"github.com/selis18/go_shortener_url/internal/config"
 )
 
-type userUrl struct {
-	inputUrl string
-}
+var longUrl string
 
 const alphabet = "abcdefghijkmnopqrstuvwxyzABCDEFGHJKLMNOPQRSTUVWXYZ23456789"
 
@@ -30,16 +29,19 @@ func generateID() string {
 }
 
 func postUrl(res http.ResponseWriter, req *http.Request) {
-	url := userUrl{
-		inputUrl: strings.TrimSpace(req.FormValue("longUrl")),
+	body, err := io.ReadAll(req.Body)
+	defer req.Body.Close()
+	if err != nil {
+		res.WriteHeader(http.StatusBadRequest)
+		return
 	}
-
-	if url.inputUrl == "" {
+	longUrl := strings.TrimSpace(string(body))
+	if longUrl == "" {
 		res.WriteHeader(http.StatusBadRequest)
 		return
 	}
 	shortUrl := generateID()
-	err := StorageR.Save(shortUrl, url)
+	err = StorageR.Save(shortUrl, longUrl)
 	if err != nil {
 		res.WriteHeader(http.StatusBadRequest)
 		return
@@ -51,14 +53,11 @@ func postUrl(res http.ResponseWriter, req *http.Request) {
 
 func getUrl(res http.ResponseWriter, req *http.Request) {
 	id := chi.URLParam(req, "id")
-	for k, v := range StorageR.storage {
-		if k == id {
-			//http.Redirect(res, req, v.inputUrl, http.StatusTemporaryRedirect)
-			res.Header().Set("Location", v.inputUrl)
-			res.Header().Set("Content-Type", "text/plain")
-			res.WriteHeader(http.StatusTemporaryRedirect)
-			return
-		}
+	if StorageR.storage[id] != "" {
+		res.Header().Set("Location", StorageR.storage[id])
+		res.Header().Set("Content-Type", "text/plain")
+		res.WriteHeader(http.StatusTemporaryRedirect)
+		return
 	}
 	res.WriteHeader(http.StatusBadRequest)
 }

@@ -3,23 +3,23 @@ package main
 import "fmt"
 
 type Storage interface {
-	Save(k string, v userUrl)
+	Save(k string, v string)
 	Get(k string) error
 }
 type StorageRepo struct {
-	storage map[string]userUrl
+	storage map[string]string
 }
 
 func NewStorageRepo() *StorageRepo {
 	return &StorageRepo{
-		storage: make(map[string]userUrl),
+		storage: make(map[string]string),
 	}
 }
-func (s *StorageRepo) Save(k string, v userUrl) error {
-	if v.inputUrl == "" {
+func (s *StorageRepo) Save(k string, v string) error {
+	if v == "" {
 		return fmt.Errorf("Ссылка не может быть пустой!")
 	}
-	if _, exist := s.storage[v.inputUrl]; exist {
+	if _, exist := s.storage[v]; exist {
 		return fmt.Errorf("Такая ссылка уже есть!")
 	}
 
@@ -33,7 +33,7 @@ func (s *StorageRepo) Save(k string, v userUrl) error {
 func (s *StorageRepo) Get(k string) (string, error) {
 	for key, value := range s.storage {
 		if key == k {
-			return value.inputUrl, nil
+			return value, nil
 		} else {
 			return "", fmt.Errorf("Не найдено!")
 		}
