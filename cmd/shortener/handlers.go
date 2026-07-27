@@ -55,11 +55,12 @@ func postUrl(res http.ResponseWriter, req *http.Request) {
 
 func getUrl(res http.ResponseWriter, req *http.Request) {
 	id := chi.URLParam(req, "id")
-	if StorageR.storage[id] != "" {
+	if _, e := StorageR.storage[id]; e {
 		res.Header().Set("Location", StorageR.storage[id])
 		res.Header().Set("Content-Type", "text/plain")
 		res.WriteHeader(http.StatusTemporaryRedirect)
 		return
 	}
+
 	res.WriteHeader(http.StatusBadRequest)
 }
