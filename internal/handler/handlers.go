@@ -12,7 +12,15 @@ import (
 	"github.com/selis18/go_shortener_url/internal/repository"
 )
 
-var longUrl string
+type HandlerStorage struct {
+	storage repository.Storage
+}
+
+func NewHandlerStorage(s repository.Storage) *HandlerStorage {
+	return &HandlerStorage{
+		storage: s,
+	}
+}
 
 const alphabet = "abcdefghijkmnopqrstuvwxyzABCDEFGHJKLMNOPQRSTUVWXYZ23456789"
 
@@ -28,7 +36,7 @@ func generateID() string {
 	return id
 }
 
-func PostUrl(res http.ResponseWriter, req *http.Request) {
+func (h *HandlerStorage) PostUrl(res http.ResponseWriter, req *http.Request) {
 	body, err := io.ReadAll(req.Body)
 	defer req.Body.Close()
 	if err != nil {
@@ -41,7 +49,7 @@ func PostUrl(res http.ResponseWriter, req *http.Request) {
 		return
 	}
 	shortUrl := generateID()
-	err = repository.StorageR.Save(shortUrl, longUrl)
+	err = h.storage.Save(shortUrl, longUrl)
 	if err != nil {
 		res.WriteHeader(http.StatusBadRequest)
 		return
@@ -54,10 +62,11 @@ func PostUrl(res http.ResponseWriter, req *http.Request) {
 	}
 }
 
-func GetUrl(res http.ResponseWriter, req *http.Request) {
+func (h *HandlerStorage) GetUrl(res http.ResponseWriter, req *http.Request) {
 	id := chi.URLParam(req, "id")
-	if _, e := repository.StorageR.Get(id); e == nil {
-		res.Header().Set("Location", repository.StorageR.Storage[id])
+	inputUrl, err := h.storage.Get(id)
+	if err == nil {
+		res.Header().Set("Location", inputUrl)
 		res.Header().Set("Content-Type", "text/plain")
 		res.WriteHeader(http.StatusTemporaryRedirect)
 		return

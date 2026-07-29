@@ -93,13 +93,15 @@ func Test_PostUrl(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
+			storage := repository.NewStorageRepo()
+			handler := NewHandlerStorage(storage)
 			r := chi.NewRouter()
 			r.Use(middleware.AllowContentType("text/plain"))
 
 			request := httptest.NewRequest(http.MethodPost, "/", strings.NewReader(test.url))
 			request.Header.Set("Content-Type", "text/plain")
 			w := httptest.NewRecorder()
-			PostUrl(w, request)
+			handler.PostUrl(w, request)
 
 			res := w.Result()
 			defer res.Body.Close()
@@ -183,16 +185,17 @@ func Test_GetUrl(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		repository.StorageR = repository.NewStorageRepo()
+		storage := repository.NewStorageRepo()
+		handler := NewHandlerStorage(storage)
 		t.Run(test.name, func(t *testing.T) {
 
 			for k, v := range test.exist {
-				repository.StorageR.Storage[k] = v
+				handler.storage.Save(k, v)
 			}
 			path := "/" + test.id
 
 			r := chi.NewRouter()
-			r.Get("/{id}", GetUrl)
+			r.Get("/{id}", handler.GetUrl)
 			r.NotFound(func(w http.ResponseWriter, r *http.Request) {
 				w.WriteHeader(http.StatusBadRequest)
 			})
