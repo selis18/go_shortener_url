@@ -1,4 +1,4 @@
-package main
+package handler
 
 import (
 	"crypto/rand"
@@ -9,6 +9,7 @@ import (
 
 	"github.com/go-chi/chi"
 	"github.com/selis18/go_shortener_url/internal/config"
+	"github.com/selis18/go_shortener_url/internal/repository"
 )
 
 var longUrl string
@@ -27,7 +28,7 @@ func generateID() string {
 	return id
 }
 
-func postUrl(res http.ResponseWriter, req *http.Request) {
+func PostUrl(res http.ResponseWriter, req *http.Request) {
 	body, err := io.ReadAll(req.Body)
 	defer req.Body.Close()
 	if err != nil {
@@ -40,7 +41,7 @@ func postUrl(res http.ResponseWriter, req *http.Request) {
 		return
 	}
 	shortUrl := generateID()
-	err = StorageR.Save(shortUrl, longUrl)
+	err = repository.StorageR.Save(shortUrl, longUrl)
 	if err != nil {
 		res.WriteHeader(http.StatusBadRequest)
 		return
@@ -53,10 +54,10 @@ func postUrl(res http.ResponseWriter, req *http.Request) {
 	}
 }
 
-func getUrl(res http.ResponseWriter, req *http.Request) {
+func GetUrl(res http.ResponseWriter, req *http.Request) {
 	id := chi.URLParam(req, "id")
-	if _, e := StorageR.storage[id]; e {
-		res.Header().Set("Location", StorageR.storage[id])
+	if _, e := repository.StorageR.Storage[id]; e {
+		res.Header().Set("Location", repository.StorageR.Storage[id])
 		res.Header().Set("Content-Type", "text/plain")
 		res.WriteHeader(http.StatusTemporaryRedirect)
 		return

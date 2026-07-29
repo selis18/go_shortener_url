@@ -1,4 +1,4 @@
-package main
+package handler
 
 import (
 	"io"
@@ -10,6 +10,7 @@ import (
 	"github.com/go-chi/chi"
 	"github.com/go-chi/chi/middleware"
 	"github.com/selis18/go_shortener_url/internal/config"
+	"github.com/selis18/go_shortener_url/internal/repository"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -92,14 +93,13 @@ func Test_postUrl(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			StorageR = NewStorageRepo()
 			r := chi.NewRouter()
 			r.Use(middleware.AllowContentType("text/plain"))
 
 			request := httptest.NewRequest(http.MethodPost, "/", strings.NewReader(test.url))
 			request.Header.Set("Content-Type", "text/plain")
 			w := httptest.NewRecorder()
-			postUrl(w, request)
+			PostUrl(w, request)
 
 			res := w.Result()
 			defer res.Body.Close()
@@ -184,15 +184,15 @@ func Test_getUrl(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			StorageR = NewStorageRepo()
+			StorageR := repository.NewStorageRepo()
 
 			for k, v := range test.exist {
-				StorageR.storage[k] = v
+				StorageR.Storage[k] = v
 			}
 			path := "/" + test.id
 
 			r := chi.NewRouter()
-			r.Get("/{id}", getUrl)
+			r.Get("/{id}", GetUrl)
 			r.NotFound(func(w http.ResponseWriter, r *http.Request) {
 				w.WriteHeader(http.StatusBadRequest)
 			})
