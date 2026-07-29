@@ -16,7 +16,7 @@ func InitServer() {
 	r.Get("/{id}", handler.GetUrl)
 	r.Post("/", handler.PostUrl)
 
-	err := http.ListenAndServe(config.FlagAddress.String(), r)
+	err := http.ListenAndServe(config.GetFlagAdress(), r)
 	if err != nil {
 		panic(err)
 	}

@@ -113,7 +113,7 @@ func Test_PostUrl(t *testing.T) {
 			if test.want.code == http.StatusCreated {
 				assert.Contains(t, res.Header.Get("Content-Type"), test.want.contentType)
 				assert.NotEmpty(t, shortUrl)
-				assert.True(t, strings.HasPrefix(shortUrl, config.FlagHost))
+				assert.True(t, strings.HasPrefix(shortUrl, config.GetFlagHost()))
 
 			}
 		})

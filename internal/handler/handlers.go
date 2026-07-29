@@ -48,7 +48,7 @@ func PostUrl(res http.ResponseWriter, req *http.Request) {
 	}
 	res.Header().Set("Content-Type", "text/plain")
 	res.WriteHeader(http.StatusCreated)
-	_, err = res.Write([]byte(config.FlagHost + shortUrl))
+	_, err = res.Write([]byte(config.GetFlagHost() + shortUrl))
 	if err != nil {
 		return
 	}
