@@ -21,7 +21,7 @@ type wantPost struct {
 	url         string
 }
 
-func Test_postUrl(t *testing.T) {
+func Test_PostUrl(t *testing.T) {
 	tests := []struct {
 		name string // description of this test case
 		// Named input parameters for target function.
@@ -125,7 +125,7 @@ type wantGet struct {
 	location string
 }
 
-func Test_getUrl(t *testing.T) {
+func Test_GetUrl(t *testing.T) {
 	tests := []struct {
 		name string // description of this test case
 		// Named input parameters for target function.
@@ -183,11 +183,11 @@ func Test_getUrl(t *testing.T) {
 	}
 
 	for _, test := range tests {
+		repository.StorageR = repository.NewStorageRepo()
 		t.Run(test.name, func(t *testing.T) {
-			StorageR := repository.NewStorageRepo()
 
 			for k, v := range test.exist {
-				StorageR.Storage[k] = v
+				repository.StorageR.Storage[k] = v
 			}
 			path := "/" + test.id
 

@@ -56,7 +56,7 @@ func PostUrl(res http.ResponseWriter, req *http.Request) {
 
 func GetUrl(res http.ResponseWriter, req *http.Request) {
 	id := chi.URLParam(req, "id")
-	if _, e := repository.StorageR.Storage[id]; e {
+	if _, e := repository.StorageR.Get(id); e == nil {
 		res.Header().Set("Location", repository.StorageR.Storage[id])
 		res.Header().Set("Content-Type", "text/plain")
 		res.WriteHeader(http.StatusTemporaryRedirect)

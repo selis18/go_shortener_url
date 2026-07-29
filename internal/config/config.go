@@ -32,13 +32,13 @@ func (a *Address) Set(s string) error {
 
 var FlagAddress = Address{
 	Host: "localhost",
-	Port: 8000,
+	Port: 8080,
 }
 var FlagHost string
 
 func ParseFlags() {
 	flag.Var(&FlagAddress, "a", "host and port to start server")
-	flag.StringVar(&FlagHost, "b", "http://localhost:8000/", "base address to result")
+	flag.StringVar(&FlagHost, "b", "http://localhost:8080/", "base address to result")
 	flag.Parse()
 
 	if !strings.HasSuffix(FlagHost, "/") {
