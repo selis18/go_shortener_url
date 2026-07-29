@@ -30,18 +30,26 @@ func (a *Address) Set(s string) error {
 	return nil
 }
 
-var FlagAddress = Address{
+var flagAddress = Address{
 	Host: "localhost",
 	Port: 8080,
 }
-var FlagHost string
+var flagHost string
 
 func ParseFlags() {
-	flag.Var(&FlagAddress, "a", "host and port to start server")
-	flag.StringVar(&FlagHost, "b", "http://localhost:8080/", "base address to result")
+	flag.Var(&flagAddress, "a", "host and port to start server")
+	flag.StringVar(&flagHost, "b", "http://localhost:8080/", "base address to result")
 	flag.Parse()
 
-	if !strings.HasSuffix(FlagHost, "/") {
-		FlagHost = "/"
+	if !strings.HasSuffix(flagHost, "/") {
+		flagHost += "/"
 	}
+}
+
+func GetFlagAdress() string {
+	return flagAddress.String()
+}
+
+func GetFlagHost() string {
+	return flagHost
 }
