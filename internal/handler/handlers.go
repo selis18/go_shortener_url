@@ -36,20 +36,20 @@ func generateID() string {
 	return id
 }
 
-func (h *HandlerStorage) PostUrl(res http.ResponseWriter, req *http.Request) {
+func (h *HandlerStorage) PostURL(res http.ResponseWriter, req *http.Request) {
 	body, err := io.ReadAll(req.Body)
 	defer req.Body.Close()
 	if err != nil {
 		res.WriteHeader(http.StatusBadRequest)
 		return
 	}
-	longUrl := strings.TrimSpace(string(body))
-	if longUrl == "" {
+	longURL := strings.TrimSpace(string(body))
+	if longURL == "" {
 		res.WriteHeader(http.StatusBadRequest)
 		return
 	}
 
-	if exKey, found := h.storage.FindByValue(longUrl); found {
+	if exKey, found := h.storage.FindByValue(longURL); found {
 		res.Header().Set("Content-Type", "text/plain")
 		res.WriteHeader(http.StatusCreated)
 		_, err = res.Write([]byte(config.GetFlagHost() + exKey))
@@ -57,16 +57,16 @@ func (h *HandlerStorage) PostUrl(res http.ResponseWriter, req *http.Request) {
 	}
 
 	var maxGenerate = 5
-	var shortUrl string
+	var shortURL string
 
 	for gen := 0; gen < maxGenerate; gen++ {
-		shortUrl = generateID()
-		err = h.storage.Save(shortUrl, longUrl)
+		shortURL = generateID()
+		err = h.storage.Save(shortURL, longURL)
 
 		if err == nil {
 			res.Header().Set("Content-Type", "text/plain")
 			res.WriteHeader(http.StatusCreated)
-			_, err = res.Write([]byte(config.GetFlagHost() + shortUrl))
+			_, err = res.Write([]byte(config.GetFlagHost() + shortURL))
 			if err != nil {
 				return
 			}
@@ -84,11 +84,11 @@ func (h *HandlerStorage) PostUrl(res http.ResponseWriter, req *http.Request) {
 	res.WriteHeader(http.StatusBadRequest)
 }
 
-func (h *HandlerStorage) GetUrl(res http.ResponseWriter, req *http.Request) {
+func (h *HandlerStorage) GetURL(res http.ResponseWriter, req *http.Request) {
 	id := chi.URLParam(req, "id")
-	inputUrl, err := h.storage.Get(id)
+	inputURL, err := h.storage.Get(id)
 	if err == nil {
-		res.Header().Set("Location", inputUrl)
+		res.Header().Set("Location", inputURL)
 		res.Header().Set("Content-Type", "text/plain")
 		res.WriteHeader(http.StatusTemporaryRedirect)
 		return

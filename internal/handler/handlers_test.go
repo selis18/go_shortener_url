@@ -18,19 +18,19 @@ import (
 type wantPost struct {
 	code        int
 	contentType string
-	url         string
+	URL         string
 }
 
 func Test_PostUrl(t *testing.T) {
 	tests := []struct {
 		name string // description of this test case
 		// Named input parameters for target function.
-		url  string
+		URL  string
 		want wantPost
 	}{
 		{
 			name: "simple test",
-			url:  "https://practicum.yandex.ru/",
+			URL:  "https://practicum.yandex.ru/",
 			want: wantPost{
 				code:        http.StatusCreated,
 				contentType: "text/plain",
@@ -38,7 +38,7 @@ func Test_PostUrl(t *testing.T) {
 		},
 		{
 			name: "one symbol",
-			url:  "a",
+			URL:  "a",
 			want: wantPost{
 				code:        http.StatusCreated,
 				contentType: "text/plain",
@@ -46,7 +46,7 @@ func Test_PostUrl(t *testing.T) {
 		},
 		{
 			name: "short url",
-			url:  "https://a",
+			URL:  "https://a",
 			want: wantPost{
 				code:        http.StatusCreated,
 				contentType: "text/plain",
@@ -54,7 +54,7 @@ func Test_PostUrl(t *testing.T) {
 		},
 		{
 			name: "max long url",
-			url:  "https://a" + strings.Repeat("a", 1999),
+			URL:  "https://a" + strings.Repeat("a", 1999),
 			want: wantPost{
 				code:        http.StatusCreated,
 				contentType: "text/plain",
@@ -62,7 +62,7 @@ func Test_PostUrl(t *testing.T) {
 		},
 		{
 			name: "russian alphabet",
-			url:  "https://яндекс.ру/",
+			URL:  "https://яндекс.ру/",
 			want: wantPost{
 				code:        http.StatusCreated,
 				contentType: "text/plain",
@@ -70,7 +70,7 @@ func Test_PostUrl(t *testing.T) {
 		},
 		{
 			name: "special symbols",
-			url:  "https://practicum.yandex.ru/?q=hello&lang=ru",
+			URL:  "https://practicum.yandex.ru/?q=hello&lang=ru",
 			want: wantPost{
 				code:        http.StatusCreated,
 				contentType: "text/plain",
@@ -78,14 +78,14 @@ func Test_PostUrl(t *testing.T) {
 		},
 		{
 			name: "blank url",
-			url:  "",
+			URL:  "",
 			want: wantPost{
 				code: http.StatusBadRequest,
 			},
 		},
 		{
 			name: "only space",
-			url:  " ",
+			URL:  " ",
 			want: wantPost{
 				code: http.StatusBadRequest,
 			},
@@ -97,11 +97,12 @@ func Test_PostUrl(t *testing.T) {
 			handler := NewHandlerStorage(storage)
 			r := chi.NewRouter()
 			r.Use(middleware.AllowContentType("text/plain"))
+			r.Post("/", handler.PostURL)
 
-			request := httptest.NewRequest(http.MethodPost, "/", strings.NewReader(test.url))
+			request := httptest.NewRequest(http.MethodPost, "/", strings.NewReader(test.URL))
 			request.Header.Set("Content-Type", "text/plain")
 			w := httptest.NewRecorder()
-			handler.PostUrl(w, request)
+			r.ServeHTTP(w, request)
 
 			res := w.Result()
 			defer res.Body.Close()
@@ -195,7 +196,7 @@ func Test_GetUrl(t *testing.T) {
 			path := "/" + test.id
 
 			r := chi.NewRouter()
-			r.Get("/{id}", handler.GetUrl)
+			r.Get("/{id}", handler.GetURL)
 			r.NotFound(func(w http.ResponseWriter, r *http.Request) {
 				w.WriteHeader(http.StatusBadRequest)
 			})

@@ -16,8 +16,8 @@ func InitServer() {
 	r := chi.NewRouter()
 	r.Use(middleware.AllowContentType("text/plain"))
 
-	r.Get("/{id}", handlers.GetUrl)
-	r.Post("/", handlers.PostUrl)
+	r.Get("/{id}", handlers.GetURL)
+	r.Post("/", handlers.PostURL)
 
 	err := http.ListenAndServe(config.GetFlagAdress(), r)
 	if err != nil {
