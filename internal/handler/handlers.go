@@ -48,18 +48,40 @@ func (h *HandlerStorage) PostUrl(res http.ResponseWriter, req *http.Request) {
 		res.WriteHeader(http.StatusBadRequest)
 		return
 	}
-	shortUrl := generateID()
-	err = h.storage.Save(shortUrl, longUrl)
-	if err != nil {
+
+	if exKey, found := h.storage.FindByValue(longUrl); found {
+		res.Header().Set("Content-Type", "text/plain")
+		res.WriteHeader(http.StatusCreated)
+		_, err = res.Write([]byte(config.GetFlagHost() + exKey))
+		return
+	}
+
+	var maxGenerate = 5
+	var shortUrl string
+
+	for gen := 0; gen < maxGenerate; gen++ {
+		shortUrl = generateID()
+		err = h.storage.Save(shortUrl, longUrl)
+
+		if err == nil {
+			res.Header().Set("Content-Type", "text/plain")
+			res.WriteHeader(http.StatusCreated)
+			_, err = res.Write([]byte(config.GetFlagHost() + shortUrl))
+			if err != nil {
+				return
+			}
+			return
+		}
+
+		if err.Error() == "Такая ссылка уже есть!" {
+			continue
+		}
+
 		res.WriteHeader(http.StatusBadRequest)
 		return
 	}
-	res.Header().Set("Content-Type", "text/plain")
-	res.WriteHeader(http.StatusCreated)
-	_, err = res.Write([]byte(config.GetFlagHost() + shortUrl))
-	if err != nil {
-		return
-	}
+
+	res.WriteHeader(http.StatusBadRequest)
 }
 
 func (h *HandlerStorage) GetUrl(res http.ResponseWriter, req *http.Request) {
