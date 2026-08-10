@@ -42,48 +42,30 @@ var address = Address{
 	Host: "localhost",
 	Port: 8080,
 }
-var host string
+var host string = "http://localhost:8080/"
 
 func ParseConfig() {
+	flag.Var(&address, "a", "host and port to start server")
+	flag.StringVar(&host, "b", "http://localhost:8080/", "base address to result")
+	flag.Parse()
+
 	var cfg Config
 	err := env.Parse(&cfg)
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	if cfg.ServerAddress != "" && cfg.BaseURL == "" {
-		addressArr := strings.Split(cfg.ServerAddress, ":")
-		address.Host = addressArr[0]
-		address.Port, err = strconv.Atoi(addressArr[1])
-	} else {
-		flag.Var(&address, "a", "host and port to start server")
-		flag.Parse()
+	if cfg.ServerAddress != "" {
+		address.Set(cfg.ServerAddress)
 	}
 
-	if cfg.BaseURL != "" && cfg.ServerAddress == "" {
+	if cfg.BaseURL != "" {
 		host = cfg.BaseURL
-	} else {
-		flag.StringVar(&host, "b", "http://localhost:8080/", "base address to result")
-		if !strings.HasSuffix(host, "/") {
-			host += "/"
-		}
-		flag.Parse()
 	}
 
-	if cfg.BaseURL != "" && cfg.ServerAddress != "" {
-		addressArr := strings.Split(cfg.ServerAddress, ":")
-		address.Host = addressArr[0]
-		address.Port, err = strconv.Atoi(addressArr[1])
-		host = cfg.BaseURL
-	} else {
-		flag.Var(&address, "a", "host and port to start server")
-		flag.StringVar(&host, "b", "http://localhost:8080/", "base address to result")
-		if !strings.HasSuffix(host, "/") {
-			host += "/"
-		}
-		flag.Parse()
+	if !strings.HasSuffix(host, "/") {
+		host = "/"
 	}
-
 }
 
 func GetFlagAdress() string {
