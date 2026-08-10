@@ -64,7 +64,7 @@ func ParseConfig() {
 	}
 
 	if !strings.HasSuffix(host, "/") {
-		host = "/"
+		host += "/"
 	}
 }
 
