@@ -14,7 +14,7 @@ type UrlReq struct {
 }
 
 func main() {
-	endpoint := "http://localhost:8081/"
+	endpoint := "http://localhost:8080/"
 
 	fmt.Println("Введите длинный URL")
 	reader := bufio.NewReader(os.Stdin)

@@ -13,6 +13,7 @@ import (
 type Config struct {
 	ServerAddress string `env:"SERVER_ADDRESS"`
 	BaseURL       string `env:"BASE_URL"`
+	LogLevel      string `env:"LOG_LEVEL"`
 }
 
 type Address struct {
@@ -43,6 +44,7 @@ var address = Address{
 	Port: 8080,
 }
 var host string = "http://localhost:8080/"
+var level string = "INFO"
 
 func ParseConfig() {
 	flag.Var(&address, "a", "host and port to start server")
@@ -63,6 +65,10 @@ func ParseConfig() {
 		host = cfg.BaseURL
 	}
 
+	if cfg.LogLevel != "" {
+		level = cfg.LogLevel
+	}
+
 	if !strings.HasSuffix(host, "/") {
 		host += "/"
 	}
@@ -74,4 +80,8 @@ func GetFlagAdress() string {
 
 func GetFlagHost() string {
 	return host
+}
+
+func GetLogLevel() string {
+	return level
 }
