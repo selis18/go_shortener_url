@@ -34,10 +34,10 @@ func RequestLogger(h http.Handler) http.Handler {
 		h.ServeHTTP(w, r)
 		reqTime := time.Since(nowTime)
 
-		Log.Debug("HTTP request: ",
-			zap.String("URI: ", r.Host),
-			zap.String("Method: ", r.Method),
-			zap.String("Request time: ", reqTime.String()),
+		Log.Info("HTTP request",
+			zap.String("URI", r.Host),
+			zap.String("Method", r.Method),
+			zap.String("Request time", reqTime.String()),
 		)
 	})
 }
