@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"encoding/json"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -10,10 +11,101 @@ import (
 	"github.com/go-chi/chi"
 	"github.com/go-chi/chi/middleware"
 	"github.com/selis18/go_shortener_url/internal/config"
+	"github.com/selis18/go_shortener_url/internal/model"
 	"github.com/selis18/go_shortener_url/internal/repository"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+func TestHandlerStorage_PostShorten(t *testing.T) {
+	tests := []struct {
+		name       string
+		body       string
+		wantStatus int
+		wantURL    string
+	}{
+		{
+			name:       "valid URL",
+			body:       `{"url":"https://practicum.yandex.ru/"}`,
+			wantStatus: http.StatusCreated,
+			wantURL:    "https://practicum.yandex.ru/",
+		},
+		{
+			name:       "URL with query parameters",
+			body:       `{"url":"https://practicum.yandex.ru/search?q=go&lang=ru"}`,
+			wantStatus: http.StatusCreated,
+			wantURL:    "https://practicum.yandex.ru/search?q=go&lang=ru",
+		},
+		{
+			name:       "URL with cyrillic characters",
+			body:       `{"url":"https://яндекс.рф/поиск"}`,
+			wantStatus: http.StatusCreated,
+			wantURL:    "https://яндекс.рф/поиск",
+		},
+		{
+			name:       "additional JSON field",
+			body:       `{"url":"https://practicum.yandex.ru/","extra":"ignored"}`,
+			wantStatus: http.StatusCreated,
+			wantURL:    "https://practicum.yandex.ru/",
+		},
+		{
+			name:       "empty URL",
+			body:       `{"url":""}`,
+			wantStatus: http.StatusInternalServerError,
+		},
+		{
+			name:       "missing URL field",
+			body:       `{}`,
+			wantStatus: http.StatusInternalServerError,
+		},
+		{
+			name:       "malformed JSON",
+			body:       `{"url":`,
+			wantStatus: http.StatusInternalServerError,
+		},
+		{
+			name:       "wrong URL type",
+			body:       `{"url":123}`,
+			wantStatus: http.StatusInternalServerError,
+		},
+		{
+			name:       "empty body",
+			body:       "",
+			wantStatus: http.StatusInternalServerError,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			storage := repository.NewStorageRepo()
+			handler := NewHandlerStorage(storage)
+			request := httptest.NewRequest(http.MethodPost, "/api/shorten", strings.NewReader(test.body))
+			request.Header.Set("Content-Type", "application/json")
+			responseRecorder := httptest.NewRecorder()
+
+			handler.PostShorten(responseRecorder, request)
+
+			response := responseRecorder.Result()
+			defer response.Body.Close()
+			require.Equal(t, test.wantStatus, response.StatusCode)
+
+			if test.wantStatus != http.StatusCreated {
+				return
+			}
+
+			assert.Contains(t, response.Header.Get("Content-Type"), "application/json")
+			var responseBody model.Response
+			require.NoError(t, json.NewDecoder(response.Body).Decode(&responseBody))
+			require.True(t, strings.HasPrefix(responseBody.ShortURL, config.GetFlagHost()))
+
+			shortID := strings.TrimPrefix(responseBody.ShortURL, config.GetFlagHost())
+			require.NotEmpty(t, shortID)
+			savedURL, err := storage.Get(shortID)
+			require.NoError(t, err)
+			assert.Equal(t, test.wantURL, savedURL)
+		})
+	}
+}
 
 type wantPost struct {
 	code        int

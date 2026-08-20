@@ -2,6 +2,9 @@ package handler
 
 import (
 	"crypto/rand"
+	"encoding/json"
+	"errors"
+	"fmt"
 	"io"
 	"math/big"
 	"net/http"
@@ -9,7 +12,10 @@ import (
 
 	"github.com/go-chi/chi"
 	"github.com/selis18/go_shortener_url/internal/config"
+	"github.com/selis18/go_shortener_url/internal/logger"
+	"github.com/selis18/go_shortener_url/internal/model"
 	"github.com/selis18/go_shortener_url/internal/repository"
+	"go.uber.org/zap"
 )
 
 type HandlerStorage struct {
@@ -36,6 +42,23 @@ func generateID() string {
 	return id
 }
 
+func (h *HandlerStorage) generateShortURL(URL string) (string, error) {
+	const maxGenerate = 5
+	for gen := 0; gen < maxGenerate; gen++ {
+		shortURL := generateID()
+		err := h.storage.Save(shortURL, URL)
+		//использовала ИИ для помощи с условием ошибки
+		if errors.Is(err, repository.ErrShortURLExists) {
+			continue
+		}
+		if err != nil {
+			return "", err
+		}
+		return config.GetFlagHost() + shortURL, nil
+	}
+	return "", fmt.Errorf("Ссылка не сгенерировалась за %d попыток", maxGenerate)
+}
+
 func (h *HandlerStorage) PostURL(res http.ResponseWriter, req *http.Request) {
 	body, err := io.ReadAll(req.Body)
 	defer req.Body.Close()
@@ -56,32 +79,17 @@ func (h *HandlerStorage) PostURL(res http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	var maxGenerate = 5
 	var shortURL string
-
-	for gen := 0; gen < maxGenerate; gen++ {
-		shortURL = generateID()
-		err = h.storage.Save(shortURL, longURL)
-
-		if err == nil {
-			res.Header().Set("Content-Type", "text/plain")
-			res.WriteHeader(http.StatusCreated)
-			_, err = res.Write([]byte(config.GetFlagHost() + shortURL))
-			if err != nil {
-				return
-			}
-			return
-		}
-
-		if err.Error() == "Такая ссылка уже есть!" {
-			continue
-		}
-
+	shortURL, err = h.generateShortURL(longURL)
+	if err != nil {
 		res.WriteHeader(http.StatusBadRequest)
-		return
 	}
 
-	res.WriteHeader(http.StatusBadRequest)
+	res.Header().Set("Content-Type", "text/plain")
+	res.WriteHeader(http.StatusCreated)
+	if _, err := res.Write([]byte(shortURL)); err != nil {
+		return
+	}
 }
 
 func (h *HandlerStorage) GetURL(res http.ResponseWriter, req *http.Request) {
@@ -95,4 +103,32 @@ func (h *HandlerStorage) GetURL(res http.ResponseWriter, req *http.Request) {
 	}
 
 	res.WriteHeader(http.StatusBadRequest)
+}
+
+func (h *HandlerStorage) PostShorten(res http.ResponseWriter, req *http.Request) {
+	var request model.Request
+	var err error
+
+	decoder := json.NewDecoder(req.Body)
+	if err = decoder.Decode(&request); err != nil {
+		res.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+	var shortURL string
+
+	if shortURL, err = h.generateShortURL(request.URL); err != nil {
+		res.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+
+	response := model.Response{
+		ShortURL: shortURL,
+	}
+	res.Header().Set("Content-Type", "application/json")
+	res.WriteHeader(http.StatusCreated)
+	encoder := json.NewEncoder(res)
+	if err = encoder.Encode(&response); err != nil {
+		logger.Log.Debug("error encoding response", zap.Error(err))
+		return
+	}
 }
