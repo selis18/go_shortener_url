@@ -17,6 +17,7 @@ func InitServer() {
 	r := chi.NewRouter()
 
 	r.Use(logger.RequestLogger)
+	r.Use(gzipMiddleware)
 	r.Route("/", func(r chi.Router) {
 		r.Use(middleware.AllowContentType("text/plain"))
 		r.Get("/{id}", handlers.GetURL)
