@@ -12,7 +12,18 @@ import (
 )
 
 func InitServer() {
-	storage := repository.NewStorageRepo()
+	var storage repository.Storage
+	filePath := config.GetFileStoragePath()
+	if filePath != "" {
+		fileStorage, err := repository.NewFileStorage(filePath)
+		if err != nil {
+			logger.Log.Fatal("init file error")
+		}
+		storage = fileStorage
+
+	} else {
+		storage = repository.NewStorageRepo()
+	}
 	handlers := handler.NewHandlerStorage(storage)
 	r := chi.NewRouter()
 
@@ -29,7 +40,7 @@ func InitServer() {
 		r.Post("/shorten", handlers.PostShorten)
 	})
 
-	err := http.ListenAndServe(config.GetFlagAdress(), r)
+	err := http.ListenAndServe(config.GetFlagAddress(), r)
 	if err != nil {
 		panic(err)
 	}
