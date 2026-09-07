@@ -1,9 +1,12 @@
 package repository
 
 import (
+	"errors"
 	"fmt"
 	"sync"
 )
+
+var ErrShortURLExists = errors.New("такая короткая ссылка уже есть")
 
 type Storage interface {
 	Save(k string, v string) error
@@ -28,7 +31,7 @@ func (s *StorageRepo) Save(k string, v string) error {
 	}
 
 	if _, e := s.storage[k]; e {
-		return fmt.Errorf("Такая короткая ссылка уже есть!")
+		return ErrShortURLExists
 	}
 
 	s.storage[k] = v

@@ -11,8 +11,10 @@ import (
 )
 
 type Config struct {
-	ServerAddress string `env:"SERVER_ADDRESS"`
-	BaseURL       string `env:"BASE_URL"`
+	ServerAddress   string `env:"SERVER_ADDRESS"`
+	BaseURL         string `env:"BASE_URL"`
+	LogLevel        string `env:"LOG_LEVEL"`
+	FileStoragePath string `env:"FILE_STORAGE_PATH"`
 }
 
 type Address struct {
@@ -43,10 +45,13 @@ var address = Address{
 	Port: 8080,
 }
 var host string = "http://localhost:8080/"
+var level string = "INFO"
+var filePath string = "./storage.json"
 
 func ParseConfig() {
 	flag.Var(&address, "a", "host and port to start server")
 	flag.StringVar(&host, "b", "http://localhost:8080/", "base address to result")
+	flag.StringVar(&filePath, "f", "./storage.txt", "file storage path")
 	flag.Parse()
 
 	var cfg Config
@@ -63,15 +68,31 @@ func ParseConfig() {
 		host = cfg.BaseURL
 	}
 
+	if cfg.LogLevel != "" {
+		level = cfg.LogLevel
+	}
+
+	if cfg.FileStoragePath != "" {
+		filePath = cfg.FileStoragePath
+	}
+
 	if !strings.HasSuffix(host, "/") {
 		host += "/"
 	}
 }
 
-func GetFlagAdress() string {
+func GetFlagAddress() string {
 	return address.String()
 }
 
 func GetFlagHost() string {
 	return host
+}
+
+func GetLogLevel() string {
+	return level
+}
+
+func GetFileStoragePath() string {
+	return filePath
 }

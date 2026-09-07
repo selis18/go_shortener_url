@@ -14,7 +14,7 @@ type UrlReq struct {
 }
 
 func main() {
-	endpoint := "http://localhost:8081/"
+	endpoint := "http://localhost:8080/api/shorten"
 
 	fmt.Println("Введите длинный URL")
 	reader := bufio.NewReader(os.Stdin)
@@ -25,10 +25,11 @@ func main() {
 	long = strings.TrimSpace(long)
 
 	client := resty.New()
+	client.SetDebug(true)
 
 	resp, err := client.R().
-		SetHeader("Content-Type", "text/plain").
-		SetBody(long).
+		SetHeader("Content-Type", "application/json").
+		SetBody(map[string]string{"url": long}).
 		Post(endpoint)
 
 	fmt.Printf("Отправляем: %q\n", long)
@@ -37,5 +38,6 @@ func main() {
 	}
 	// выводим код ответа
 	fmt.Println("Статус-код ", resp.Status())
+	fmt.Println("Заголовки ответа:", resp.Header())
 	fmt.Println(resp.String())
 }
