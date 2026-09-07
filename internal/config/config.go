@@ -15,6 +15,7 @@ type Config struct {
 	BaseURL         string `env:"BASE_URL"`
 	LogLevel        string `env:"LOG_LEVEL"`
 	FileStoragePath string `env:"FILE_STORAGE_PATH"`
+	DatabaseDSN     string `env:"DATABASE_DSN"`
 }
 
 type Address struct {
@@ -47,11 +48,13 @@ var address = Address{
 var host string = "http://localhost:8080/"
 var level string = "INFO"
 var filePath string = "./storage.json"
+var databaseDSN string
 
 func ParseConfig() {
 	flag.Var(&address, "a", "host and port to start server")
 	flag.StringVar(&host, "b", "http://localhost:8080/", "base address to result")
 	flag.StringVar(&filePath, "f", "./storage.txt", "file storage path")
+	flag.StringVar(&databaseDSN, "d", "", "PostgreSQL connection string")
 	flag.Parse()
 
 	var cfg Config
@@ -75,6 +78,9 @@ func ParseConfig() {
 	if cfg.FileStoragePath != "" {
 		filePath = cfg.FileStoragePath
 	}
+	if cfg.DatabaseDSN != "" {
+		databaseDSN = cfg.DatabaseDSN
+	}
 
 	if !strings.HasSuffix(host, "/") {
 		host += "/"
@@ -95,4 +101,8 @@ func GetLogLevel() string {
 
 func GetFileStoragePath() string {
 	return filePath
+}
+
+func GetDatabaseDSN() string {
+	return databaseDSN
 }

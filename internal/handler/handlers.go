@@ -56,7 +56,7 @@ func (h *HandlerStorage) generateShortURL(URL string) (string, error) {
 		}
 		return config.GetFlagHost() + shortURL, nil
 	}
-	return "", fmt.Errorf("Ссылка не сгенерировалась за %d попыток", maxGenerate)
+	return "", fmt.Errorf("links were not generated after %d attempts", maxGenerate)
 }
 
 func (h *HandlerStorage) PostURL(res http.ResponseWriter, req *http.Request) {
