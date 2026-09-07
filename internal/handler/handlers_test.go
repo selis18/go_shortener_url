@@ -202,13 +202,13 @@ func Test_PostUrl(t *testing.T) {
 			body, err := io.ReadAll(res.Body)
 			require.NoError(t, err)
 
-			shortUrl := strings.TrimSpace(string(body))
+			shortURL := strings.TrimSpace(string(body))
 
 			assert.Equal(t, test.want.code, res.StatusCode)
 			if test.want.code == http.StatusCreated {
 				assert.Contains(t, res.Header.Get("Content-Type"), test.want.contentType)
-				assert.NotEmpty(t, shortUrl)
-				assert.True(t, strings.HasPrefix(shortUrl, config.GetFlagHost()))
+				assert.NotEmpty(t, shortURL)
+				assert.True(t, strings.HasPrefix(shortURL, config.GetFlagHost()))
 
 			}
 		})
