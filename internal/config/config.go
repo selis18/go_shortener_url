@@ -10,6 +10,8 @@ import (
 	"github.com/caarlos0/env"
 )
 
+var ErrFormatNotCorrect = errors.New("need address in a form host:port")
+
 type Config struct {
 	ServerAddress   string `env:"SERVER_ADDRESS"`
 	BaseURL         string `env:"BASE_URL"`
@@ -30,7 +32,7 @@ func (a *Address) String() string {
 func (a *Address) Set(s string) error {
 	hp := strings.Split(s, ":")
 	if len(hp) != 2 {
-		return errors.New("Need address in a form host:port")
+		return ErrFormatNotCorrect
 	}
 	port, err := strconv.Atoi(hp[1])
 	if err != nil {

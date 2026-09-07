@@ -2,11 +2,12 @@ package repository
 
 import (
 	"errors"
-	"fmt"
 	"sync"
 )
 
-var ErrShortURLExists = errors.New("такая короткая ссылка уже есть")
+var ErrShortURLExists = errors.New("this url already is done")
+var ErrShortURLEmpty = errors.New("url is empty")
+var ErrKeyNotFound = errors.New("the key is not found")
 
 type Storage interface {
 	Save(k string, v string) error
@@ -27,7 +28,7 @@ func (s *StorageRepo) Save(k string, v string) error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 	if v == "" {
-		return fmt.Errorf("Ссылка не может быть пустой!")
+		return ErrShortURLEmpty
 	}
 
 	if _, e := s.storage[k]; e {
@@ -44,7 +45,7 @@ func (s *StorageRepo) Get(k string) (string, error) {
 	if v, e := s.storage[k]; e {
 		return v, nil
 	}
-	return "", fmt.Errorf("Ключ не найден!")
+	return "", ErrKeyNotFound
 }
 
 func (s *StorageRepo) FindByValue(v string) (string, bool) {

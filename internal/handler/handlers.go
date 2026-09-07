@@ -76,6 +76,9 @@ func (h *HandlerStorage) PostURL(res http.ResponseWriter, req *http.Request) {
 		res.Header().Set("Content-Type", "text/plain")
 		res.WriteHeader(http.StatusCreated)
 		_, err = res.Write([]byte(config.GetFlagHost() + exKey))
+		if err != nil {
+			res.WriteHeader(http.StatusBadRequest)
+		}
 		return
 	}
 
