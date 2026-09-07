@@ -3,9 +3,17 @@ package config
 import (
 	"errors"
 	"flag"
+	"log"
 	"strconv"
 	"strings"
+
+	"github.com/caarlos0/env"
 )
+
+type Config struct {
+	ServerAddress string `env:"SERVER_ADDRESS"`
+	BaseURL       string `env:"BASE_URL"`
+}
 
 type Address struct {
 	Host string
@@ -30,26 +38,40 @@ func (a *Address) Set(s string) error {
 	return nil
 }
 
-var flagAddress = Address{
+var address = Address{
 	Host: "localhost",
 	Port: 8080,
 }
-var flagHost string
+var host string = "http://localhost:8080/"
 
-func ParseFlags() {
-	flag.Var(&flagAddress, "a", "host and port to start server")
-	flag.StringVar(&flagHost, "b", "http://localhost:8080/", "base address to result")
+func ParseConfig() {
+	flag.Var(&address, "a", "host and port to start server")
+	flag.StringVar(&host, "b", "http://localhost:8080/", "base address to result")
 	flag.Parse()
 
-	if !strings.HasSuffix(flagHost, "/") {
-		flagHost += "/"
+	var cfg Config
+	err := env.Parse(&cfg)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	if cfg.ServerAddress != "" {
+		address.Set(cfg.ServerAddress)
+	}
+
+	if cfg.BaseURL != "" {
+		host = cfg.BaseURL
+	}
+
+	if !strings.HasSuffix(host, "/") {
+		host += "/"
 	}
 }
 
 func GetFlagAdress() string {
-	return flagAddress.String()
+	return address.String()
 }
 
 func GetFlagHost() string {
-	return flagHost
+	return host
 }
