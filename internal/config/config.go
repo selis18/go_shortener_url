@@ -49,13 +49,13 @@ var address = Address{
 }
 var host string = "http://localhost:8080/"
 var level string = "INFO"
-var filePath string = "./storage.json"
+var filePath string
 var databaseDSN string
 
 func ParseConfig() {
 	flag.Var(&address, "a", "host and port to start server")
 	flag.StringVar(&host, "b", "http://localhost:8080/", "base address to result")
-	flag.StringVar(&filePath, "f", "./storage.txt", "file storage path")
+	flag.StringVar(&filePath, "f", "", "file storage path")
 	flag.StringVar(&databaseDSN, "d", "", "PostgreSQL connection string")
 	flag.Parse()
 

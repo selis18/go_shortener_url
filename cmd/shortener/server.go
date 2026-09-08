@@ -1,8 +1,10 @@
 package main
 
 import (
+	"context"
 	"database/sql"
 	"net/http"
+	"time"
 
 	"github.com/go-chi/chi"
 	"github.com/go-chi/chi/middleware"
@@ -21,8 +23,17 @@ func InitServer() {
 		if err != nil {
 			logger.Log.Error("init database error")
 		} else {
+			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			storage, initErr := repository.NewPostgresStorage(ctx, db)
+			cancel()
+			if initErr != nil {
+				logger.Log.Fatal("init database error", zap.Error(initErr))
+			}
 			defer db.Close()
 			database = db
+			handlers := handler.NewHandlerStorage(storage)
+			startServer(handlers, database)
+			return
 		}
 	}
 
@@ -39,6 +50,10 @@ func InitServer() {
 		storage = repository.NewStorageRepo()
 	}
 	handlers := handler.NewHandlerStorage(storage)
+	startServer(handlers, database)
+}
+
+func startServer(handlers *handler.HandlerStorage, database handler.DatabasePinger) {
 	r := chi.NewRouter()
 
 	r.Use(logger.RequestLogger)

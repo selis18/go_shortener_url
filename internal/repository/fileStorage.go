@@ -2,6 +2,7 @@ package repository
 
 import (
 	"bufio"
+	"context"
 	"encoding/json"
 	"errors"
 	"os"
@@ -127,6 +128,12 @@ func NewFileStorage(fileName string) (*FileStorage, error) {
 }
 
 func (s *FileStorage) Save(shortURL string, originalURL string) error {
+	return s.SaveContext(context.Background(), shortURL, originalURL)
+}
+func (s *FileStorage) SaveContext(ctx context.Context, shortURL string, originalURL string) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 	if err := s.storage.Save(shortURL, originalURL); err != nil {
@@ -148,9 +155,16 @@ func (s *FileStorage) Save(shortURL string, originalURL string) error {
 }
 
 func (s *FileStorage) Get(shortURL string) (string, error) {
-	return s.storage.Get(shortURL)
+	return s.GetContext(context.Background(), shortURL)
+}
+func (s *FileStorage) GetContext(ctx context.Context, shortURL string) (string, error) {
+	return s.storage.GetContext(ctx, shortURL)
 }
 
 func (s *FileStorage) FindByValue(originalURL string) (string, bool) {
-	return s.storage.FindByValue(originalURL)
+	k, found, _ := s.FindByValueContext(context.Background(), originalURL)
+	return k, found
+}
+func (s *FileStorage) FindByValueContext(ctx context.Context, originalURL string) (string, bool, error) {
+	return s.storage.FindByValueContext(ctx, originalURL)
 }

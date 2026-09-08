@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"context"
 	"crypto/rand"
 	"encoding/json"
 	"errors"
@@ -43,10 +44,13 @@ func generateID() string {
 }
 
 func (h *HandlerStorage) generateShortURL(URL string) (string, error) {
+	return h.generateShortURLContext(context.Background(), URL)
+}
+func (h *HandlerStorage) generateShortURLContext(ctx context.Context, URL string) (string, error) {
 	const maxGenerate = 5
 	for gen := 0; gen < maxGenerate; gen++ {
 		shortURL := generateID()
-		err := h.storage.Save(shortURL, URL)
+		err := h.save(ctx, shortURL, URL)
 		//использовала ИИ для помощи с условием ошибки
 		if errors.Is(err, repository.ErrShortURLExists) {
 			continue
@@ -57,6 +61,25 @@ func (h *HandlerStorage) generateShortURL(URL string) (string, error) {
 		return config.GetFlagHost() + shortURL, nil
 	}
 	return "", fmt.Errorf("links were not generated after %d attempts", maxGenerate)
+}
+func (h *HandlerStorage) save(ctx context.Context, k, v string) error {
+	if s, ok := h.storage.(repository.ContextStorage); ok {
+		return s.SaveContext(ctx, k, v)
+	}
+	return h.storage.Save(k, v)
+}
+func (h *HandlerStorage) find(ctx context.Context, v string) (string, bool, error) {
+	if s, ok := h.storage.(repository.ContextStorage); ok {
+		return s.FindByValueContext(ctx, v)
+	}
+	k, found := h.storage.FindByValue(v)
+	return k, found, nil
+}
+func (h *HandlerStorage) get(ctx context.Context, k string) (string, error) {
+	if s, ok := h.storage.(repository.ContextStorage); ok {
+		return s.GetContext(ctx, k)
+	}
+	return h.storage.Get(k)
 }
 
 func (h *HandlerStorage) PostURL(res http.ResponseWriter, req *http.Request) {
@@ -72,7 +95,10 @@ func (h *HandlerStorage) PostURL(res http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	if exKey, found := h.storage.FindByValue(longURL); found {
+	if exKey, found, findErr := h.find(req.Context(), longURL); findErr != nil {
+		res.WriteHeader(http.StatusInternalServerError)
+		return
+	} else if found {
 		res.Header().Set("Content-Type", "text/plain")
 		res.WriteHeader(http.StatusCreated)
 		_, err = res.Write([]byte(config.GetFlagHost() + exKey))
@@ -83,9 +109,10 @@ func (h *HandlerStorage) PostURL(res http.ResponseWriter, req *http.Request) {
 	}
 
 	var shortURL string
-	shortURL, err = h.generateShortURL(longURL)
+	shortURL, err = h.generateShortURLContext(req.Context(), longURL)
 	if err != nil {
 		res.WriteHeader(http.StatusBadRequest)
+		return
 	}
 
 	res.Header().Set("Content-Type", "text/plain")
@@ -97,7 +124,7 @@ func (h *HandlerStorage) PostURL(res http.ResponseWriter, req *http.Request) {
 
 func (h *HandlerStorage) GetURL(res http.ResponseWriter, req *http.Request) {
 	id := chi.URLParam(req, "id")
-	inputURL, err := h.storage.Get(id)
+	inputURL, err := h.get(req.Context(), id)
 	if err == nil {
 		res.Header().Set("Location", inputURL)
 		res.Header().Set("Content-Type", "text/plain")
@@ -119,7 +146,7 @@ func (h *HandlerStorage) PostShorten(res http.ResponseWriter, req *http.Request)
 	}
 	var shortURL string
 
-	if shortURL, err = h.generateShortURL(request.URL); err != nil {
+	if shortURL, err = h.generateShortURLContext(req.Context(), request.URL); err != nil {
 		res.WriteHeader(http.StatusInternalServerError)
 		return
 	}
