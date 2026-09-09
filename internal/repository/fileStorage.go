@@ -108,9 +108,11 @@ func NewFileStorage(fileName string) (*FileStorage, error) {
 			break
 		}
 
-		err = storage.storage.Save(item.ShortURL, item.OriginalURL)
-		if err != nil && !errors.Is(err, ErrShortURLExists) {
-			return nil, err
+		if item.OriginalURL == "" {
+			return nil, ErrShortURLEmpty
+		}
+		if _, exists := storage.storage.storage[item.ShortURL]; !exists {
+			storage.storage.storage[item.ShortURL] = item.OriginalURL
 		}
 
 		id, err := strconv.Atoi(item.UUID)
@@ -145,6 +147,11 @@ func (s *FileStorage) SaveContext(ctx context.Context, shortURL string, original
 	}
 	if originalURL == "" {
 		return ErrShortURLEmpty
+	}
+	for _, value := range s.storage.storage {
+		if value == originalURL {
+			return ErrConflict
+		}
 	}
 	if _, exists := s.storage.storage[shortURL]; exists {
 		return ErrShortURLExists

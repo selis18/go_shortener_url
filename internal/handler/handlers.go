@@ -51,7 +51,16 @@ func (h *HandlerStorage) generateShortURLContext(ctx context.Context, URL string
 	for gen := 0; gen < maxGenerate; gen++ {
 		shortURL := generateID()
 		err := h.save(ctx, shortURL, URL)
-		//использовала ИИ для помощи с условием ошибки
+		if errors.Is(err, repository.ErrConflict) {
+			key, found, findErr := h.find(ctx, URL)
+			if findErr != nil {
+				return "", findErr
+			}
+			if !found {
+				return "", repository.ErrKeyNotFound
+			}
+			return config.GetFlagHost() + key, repository.ErrConflict
+		}
 		if errors.Is(err, repository.ErrShortURLExists) {
 			continue
 		}
@@ -95,28 +104,18 @@ func (h *HandlerStorage) PostURL(res http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	if exKey, found, findErr := h.find(req.Context(), longURL); findErr != nil {
-		res.WriteHeader(http.StatusInternalServerError)
-		return
-	} else if found {
-		res.Header().Set("Content-Type", "text/plain")
-		res.WriteHeader(http.StatusCreated)
-		_, err = res.Write([]byte(config.GetFlagHost() + exKey))
-		if err != nil {
-			res.WriteHeader(http.StatusBadRequest)
-		}
-		return
-	}
-
 	var shortURL string
 	shortURL, err = h.generateShortURLContext(req.Context(), longURL)
-	if err != nil {
-		res.WriteHeader(http.StatusBadRequest)
+	status := http.StatusCreated
+	if errors.Is(err, repository.ErrConflict) {
+		status = http.StatusConflict
+	} else if err != nil {
+		res.WriteHeader(http.StatusInternalServerError)
 		return
 	}
 
 	res.Header().Set("Content-Type", "text/plain")
-	res.WriteHeader(http.StatusCreated)
+	res.WriteHeader(status)
 	if _, err := res.Write([]byte(shortURL)); err != nil {
 		return
 	}
@@ -146,7 +145,11 @@ func (h *HandlerStorage) PostShorten(res http.ResponseWriter, req *http.Request)
 	}
 	var shortURL string
 
-	if shortURL, err = h.generateShortURLContext(req.Context(), request.URL); err != nil {
+	shortURL, err = h.generateShortURLContext(req.Context(), request.URL)
+	status := http.StatusCreated
+	if errors.Is(err, repository.ErrConflict) {
+		status = http.StatusConflict
+	} else if err != nil {
 		res.WriteHeader(http.StatusInternalServerError)
 		return
 	}
@@ -155,7 +158,7 @@ func (h *HandlerStorage) PostShorten(res http.ResponseWriter, req *http.Request)
 		ShortURL: shortURL,
 	}
 	res.Header().Set("Content-Type", "application/json")
-	res.WriteHeader(http.StatusCreated)
+	res.WriteHeader(status)
 	encoder := json.NewEncoder(res)
 	if err = encoder.Encode(&response); err != nil {
 		logger.Log.Debug("error encoding response", zap.Error(err))

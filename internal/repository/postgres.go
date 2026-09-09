@@ -69,6 +69,9 @@ func (s *PostgresStorage) SaveContext(ctx context.Context, k, v string) error {
 	if err != nil {
 		var pqErr *pq.Error
 		if errors.As(err, &pqErr) && pqErr.Code == "23505" {
+			if pqErr.Constraint == "short_urls_original_url_key" {
+				return ErrConflict
+			}
 			return ErrShortURLExists
 		}
 		return err

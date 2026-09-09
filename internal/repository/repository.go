@@ -10,6 +10,8 @@ var ErrShortURLExists = errors.New("this url already is done")
 var ErrShortURLEmpty = errors.New("url is empty")
 var ErrKeyNotFound = errors.New("the key is not found")
 
+var ErrConflict = errors.New("original URL already exists")
+
 type Storage interface {
 	Save(k string, v string) error
 	Get(k string) (string, error)
@@ -41,6 +43,11 @@ func (s *StorageRepo) SaveContext(ctx context.Context, k string, v string) error
 	defer s.mutex.Unlock()
 	if v == "" {
 		return ErrShortURLEmpty
+	}
+	for _, value := range s.storage {
+		if value == v {
+			return ErrConflict
+		}
 	}
 
 	if _, e := s.storage[k]; e {
