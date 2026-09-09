@@ -4,10 +4,54 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"sort"
+
 	"github.com/lib/pq"
 )
 
 type PostgresStorage struct{ db *sql.DB }
+
+func (s *PostgresStorage) SaveBatch(ctx context.Context, pairs []URLPair) ([]string, error) {
+	keys := make([]string, len(pairs))
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	if len(pairs) == 0 {
+		return keys, nil
+	}
+	for _, pair := range pairs {
+		if pair.OriginalURL == "" {
+			return nil, ErrShortURLEmpty
+		}
+	}
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return nil, err
+	}
+	defer tx.Rollback()
+	order := make([]int, len(pairs))
+	for i := range order {
+		order[i] = i
+	}
+	sort.SliceStable(order, func(i, j int) bool { return pairs[order[i]].OriginalURL < pairs[order[j]].OriginalURL })
+	for _, i := range order {
+		pair := pairs[i]
+		err = tx.QueryRowContext(ctx, `INSERT INTO short_urls(short_url, original_url) VALUES ($1, $2)
+			ON CONFLICT (original_url) DO UPDATE SET original_url = EXCLUDED.original_url
+			RETURNING short_url`, pair.ShortURL, pair.OriginalURL).Scan(&keys[i])
+		if err != nil {
+			var pqErr *pq.Error
+			if errors.As(err, &pqErr) && pqErr.Code == "23505" {
+				return nil, ErrShortURLExists
+			}
+			return nil, err
+		}
+	}
+	if err := tx.Commit(); err != nil {
+		return nil, err
+	}
+	return keys, nil
+}
 
 func NewPostgresStorage(ctx context.Context, db *sql.DB) (*PostgresStorage, error) {
 	const schema = `CREATE TABLE IF NOT EXISTS short_urls (short_url TEXT PRIMARY KEY, original_url TEXT NOT NULL UNIQUE)`

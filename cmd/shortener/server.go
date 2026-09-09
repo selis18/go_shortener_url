@@ -68,6 +68,7 @@ func startServer(handlers *handler.HandlerStorage, database handler.DatabasePing
 	r.Route("/api", func(r chi.Router) {
 		r.Use(middleware.AllowContentType("application/json"))
 		r.Post("/shorten", handlers.PostShorten)
+		r.Post("/shorten/batch", handlers.PostShortenBatch)
 	})
 
 	err := http.ListenAndServe(config.GetFlagAddress(), r)

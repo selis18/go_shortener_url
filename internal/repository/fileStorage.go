@@ -2,9 +2,11 @@ package repository
 
 import (
 	"bufio"
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
+	"io"
 	"os"
 	"strconv"
 	"sync"
@@ -136,8 +138,16 @@ func (s *FileStorage) SaveContext(ctx context.Context, shortURL string, original
 	}
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
-	if err := s.storage.Save(shortURL, originalURL); err != nil {
+	s.storage.mutex.Lock()
+	defer s.storage.mutex.Unlock()
+	if err := ctx.Err(); err != nil {
 		return err
+	}
+	if originalURL == "" {
+		return ErrShortURLEmpty
+	}
+	if _, exists := s.storage.storage[shortURL]; exists {
+		return ErrShortURLExists
 	}
 
 	u := &model.JSONStorage{
@@ -146,12 +156,66 @@ func (s *FileStorage) SaveContext(ctx context.Context, shortURL string, original
 		OriginalURL: originalURL,
 	}
 
-	if err := s.producer.WriteURL(u); err != nil {
+	data, err := json.Marshal(u)
+	if err != nil {
+		return err
+	}
+	if err := s.appendBatch(append(data, '\n')); err != nil {
 		return err
 	}
 
+	s.storage.storage[shortURL] = originalURL
 	s.nextUUID++
 	return nil
+}
+
+func (s *FileStorage) appendBatch(data []byte) error {
+	if len(data) == 0 {
+		return nil
+	}
+	info, err := s.producer.file.Stat()
+	if err != nil {
+		return err
+	}
+	n, err := s.producer.file.Write(data)
+	if err == nil && n != len(data) {
+		err = io.ErrShortWrite
+	}
+	if err != nil {
+		return errors.Join(err, s.producer.file.Truncate(info.Size()))
+	}
+	return nil
+}
+
+func (s *FileStorage) SaveBatch(ctx context.Context, pairs []URLPair) ([]string, error) {
+	s.mutex.Lock()
+	defer s.mutex.Unlock()
+	s.storage.mutex.Lock()
+	defer s.storage.mutex.Unlock()
+	keys, added, err := prepareBatch(ctx, s.storage.storage, pairs)
+	if err != nil {
+		return nil, err
+	}
+	var data bytes.Buffer
+	encoder := json.NewEncoder(&data)
+	for i, pair := range added {
+		if err := encoder.Encode(model.JSONStorage{
+			UUID: strconv.Itoa(s.nextUUID + i), ShortURL: pair.ShortURL, OriginalURL: pair.OriginalURL,
+		}); err != nil {
+			return nil, err
+		}
+	}
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	if err := s.appendBatch(data.Bytes()); err != nil {
+		return nil, err
+	}
+	for _, pair := range added {
+		s.storage.storage[pair.ShortURL] = pair.OriginalURL
+	}
+	s.nextUUID += len(added)
+	return keys, nil
 }
 
 func (s *FileStorage) Get(shortURL string) (string, error) {
