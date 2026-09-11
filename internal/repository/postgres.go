@@ -53,12 +53,8 @@ func (s *PostgresStorage) SaveBatch(ctx context.Context, pairs []URLPair) ([]str
 	return keys, nil
 }
 
-func NewPostgresStorage(ctx context.Context, db *sql.DB) (*PostgresStorage, error) {
-	const schema = `CREATE TABLE IF NOT EXISTS short_urls (short_url TEXT PRIMARY KEY, original_url TEXT NOT NULL UNIQUE)`
-	if _, err := db.ExecContext(ctx, schema); err != nil {
-		return nil, err
-	}
-	return &PostgresStorage{db: db}, nil
+func NewPostgresStorage(db *sql.DB) *PostgresStorage {
+	return &PostgresStorage{db: db}
 }
 func (s *PostgresStorage) Save(k, v string) error { return s.SaveContext(context.Background(), k, v) }
 func (s *PostgresStorage) SaveContext(ctx context.Context, k, v string) error {

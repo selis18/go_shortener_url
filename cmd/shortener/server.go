@@ -13,6 +13,7 @@ import (
 	"github.com/selis18/go_shortener_url/internal/handler"
 	"github.com/selis18/go_shortener_url/internal/logger"
 	"github.com/selis18/go_shortener_url/internal/repository"
+	"github.com/selis18/go_shortener_url/migrations"
 	"go.uber.org/zap"
 )
 
@@ -21,20 +22,26 @@ func InitServer() {
 	if dsn := config.GetDatabaseDSN(); dsn != "" {
 		db, err := sql.Open("postgres", dsn)
 		if err != nil {
-			logger.Log.Error("init database error")
-		} else {
-			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-			storage, initErr := repository.NewPostgresStorage(ctx, db)
-			cancel()
-			if initErr != nil {
-				logger.Log.Fatal("init database error", zap.Error(initErr))
-			}
-			defer db.Close()
-			database = db
-			handlers := handler.NewHandlerStorage(storage)
-			startServer(handlers, database)
+			logger.Log.Fatal("open database error", zap.Error(err))
 			return
 		}
+		defer db.Close()
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		err = db.PingContext(ctx)
+		cancel()
+		if err != nil {
+			logger.Log.Fatal("connect database error", zap.Error(err))
+			return
+		}
+		if err := migrations.Up(db); err != nil {
+			logger.Log.Fatal("migrate database error", zap.Error(err))
+			return
+		}
+		storage := repository.NewPostgresStorage(db)
+		database = db
+		handlers := handler.NewHandlerStorage(storage)
+		startServer(handlers, database)
+		return
 	}
 
 	var storage repository.Storage
