@@ -10,11 +10,14 @@ import (
 	"github.com/caarlos0/env"
 )
 
+var ErrFormatNotCorrect = errors.New("need address in a form host:port")
+
 type Config struct {
 	ServerAddress   string `env:"SERVER_ADDRESS"`
 	BaseURL         string `env:"BASE_URL"`
 	LogLevel        string `env:"LOG_LEVEL"`
 	FileStoragePath string `env:"FILE_STORAGE_PATH"`
+	DatabaseDSN     string `env:"DATABASE_DSN"`
 }
 
 type Address struct {
@@ -29,7 +32,7 @@ func (a *Address) String() string {
 func (a *Address) Set(s string) error {
 	hp := strings.Split(s, ":")
 	if len(hp) != 2 {
-		return errors.New("Need address in a form host:port")
+		return ErrFormatNotCorrect
 	}
 	port, err := strconv.Atoi(hp[1])
 	if err != nil {
@@ -46,12 +49,14 @@ var address = Address{
 }
 var host string = "http://localhost:8080/"
 var level string = "INFO"
-var filePath string = "./storage.json"
+var filePath string
+var databaseDSN string
 
 func ParseConfig() {
 	flag.Var(&address, "a", "host and port to start server")
 	flag.StringVar(&host, "b", "http://localhost:8080/", "base address to result")
-	flag.StringVar(&filePath, "f", "./storage.txt", "file storage path")
+	flag.StringVar(&filePath, "f", "", "file storage path")
+	flag.StringVar(&databaseDSN, "d", "", "PostgreSQL connection string")
 	flag.Parse()
 
 	var cfg Config
@@ -75,6 +80,9 @@ func ParseConfig() {
 	if cfg.FileStoragePath != "" {
 		filePath = cfg.FileStoragePath
 	}
+	if cfg.DatabaseDSN != "" {
+		databaseDSN = cfg.DatabaseDSN
+	}
 
 	if !strings.HasSuffix(host, "/") {
 		host += "/"
@@ -95,4 +103,8 @@ func GetLogLevel() string {
 
 func GetFileStoragePath() string {
 	return filePath
+}
+
+func GetDatabaseDSN() string {
+	return databaseDSN
 }

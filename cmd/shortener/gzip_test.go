@@ -60,7 +60,7 @@ func TestGzipMiddleware(t *testing.T) {
 		require.NotEmpty(t, strings.TrimPrefix(response.ShortURL, config.GetFlagHost()))
 	})
 
-	t.Run("compresses gzip response", func(t *testing.T) {
+	t.Run("compresses conflict response for repeated URL", func(t *testing.T) {
 		req, err := http.NewRequest(
 			http.MethodPost,
 			server.URL+"/api/shorten",
@@ -74,7 +74,7 @@ func TestGzipMiddleware(t *testing.T) {
 		require.NoError(t, err)
 		defer resp.Body.Close()
 
-		require.Equal(t, http.StatusCreated, resp.StatusCode)
+		require.Equal(t, http.StatusConflict, resp.StatusCode)
 		require.Equal(t, "gzip", resp.Header.Get("Content-Encoding"))
 
 		zr, err := gzip.NewReader(resp.Body)

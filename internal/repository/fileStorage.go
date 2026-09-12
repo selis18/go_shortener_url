@@ -2,8 +2,11 @@ package repository
 
 import (
 	"bufio"
+	"bytes"
+	"context"
 	"encoding/json"
 	"errors"
+	"io"
 	"os"
 	"strconv"
 	"sync"
@@ -105,9 +108,11 @@ func NewFileStorage(fileName string) (*FileStorage, error) {
 			break
 		}
 
-		err = storage.storage.Save(item.ShortURL, item.OriginalURL)
-		if err != nil && !errors.Is(err, ErrShortURLExists) {
-			return nil, err
+		if item.OriginalURL == "" {
+			return nil, ErrShortURLEmpty
+		}
+		if _, exists := storage.storage.storage[item.ShortURL]; !exists {
+			storage.storage.storage[item.ShortURL] = item.OriginalURL
 		}
 
 		id, err := strconv.Atoi(item.UUID)
@@ -127,10 +132,29 @@ func NewFileStorage(fileName string) (*FileStorage, error) {
 }
 
 func (s *FileStorage) Save(shortURL string, originalURL string) error {
+	return s.SaveContext(context.Background(), shortURL, originalURL)
+}
+func (s *FileStorage) SaveContext(ctx context.Context, shortURL string, originalURL string) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
-	if err := s.storage.Save(shortURL, originalURL); err != nil {
+	s.storage.mutex.Lock()
+	defer s.storage.mutex.Unlock()
+	if err := ctx.Err(); err != nil {
 		return err
+	}
+	if originalURL == "" {
+		return ErrShortURLEmpty
+	}
+	for _, value := range s.storage.storage {
+		if value == originalURL {
+			return ErrConflict
+		}
+	}
+	if _, exists := s.storage.storage[shortURL]; exists {
+		return ErrShortURLExists
 	}
 
 	u := &model.JSONStorage{
@@ -139,18 +163,79 @@ func (s *FileStorage) Save(shortURL string, originalURL string) error {
 		OriginalURL: originalURL,
 	}
 
-	if err := s.producer.WriteURL(u); err != nil {
+	data, err := json.Marshal(u)
+	if err != nil {
+		return err
+	}
+	if err := s.appendBatch(append(data, '\n')); err != nil {
 		return err
 	}
 
+	s.storage.storage[shortURL] = originalURL
 	s.nextUUID++
 	return nil
 }
 
+func (s *FileStorage) appendBatch(data []byte) error {
+	if len(data) == 0 {
+		return nil
+	}
+	info, err := s.producer.file.Stat()
+	if err != nil {
+		return err
+	}
+	n, err := s.producer.file.Write(data)
+	if err == nil && n != len(data) {
+		err = io.ErrShortWrite
+	}
+	if err != nil {
+		return errors.Join(err, s.producer.file.Truncate(info.Size()))
+	}
+	return nil
+}
+
+func (s *FileStorage) SaveBatch(ctx context.Context, pairs []URLPair) ([]string, error) {
+	s.mutex.Lock()
+	defer s.mutex.Unlock()
+	s.storage.mutex.Lock()
+	defer s.storage.mutex.Unlock()
+	keys, added, err := prepareBatch(ctx, s.storage.storage, pairs)
+	if err != nil {
+		return nil, err
+	}
+	var data bytes.Buffer
+	encoder := json.NewEncoder(&data)
+	for i, pair := range added {
+		if err := encoder.Encode(model.JSONStorage{
+			UUID: strconv.Itoa(s.nextUUID + i), ShortURL: pair.ShortURL, OriginalURL: pair.OriginalURL,
+		}); err != nil {
+			return nil, err
+		}
+	}
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	if err := s.appendBatch(data.Bytes()); err != nil {
+		return nil, err
+	}
+	for _, pair := range added {
+		s.storage.storage[pair.ShortURL] = pair.OriginalURL
+	}
+	s.nextUUID += len(added)
+	return keys, nil
+}
+
 func (s *FileStorage) Get(shortURL string) (string, error) {
-	return s.storage.Get(shortURL)
+	return s.GetContext(context.Background(), shortURL)
+}
+func (s *FileStorage) GetContext(ctx context.Context, shortURL string) (string, error) {
+	return s.storage.GetContext(ctx, shortURL)
 }
 
 func (s *FileStorage) FindByValue(originalURL string) (string, bool) {
-	return s.storage.FindByValue(originalURL)
+	k, found, _ := s.FindByValueContext(context.Background(), originalURL)
+	return k, found
+}
+func (s *FileStorage) FindByValueContext(ctx context.Context, originalURL string) (string, bool, error) {
+	return s.storage.FindByValueContext(ctx, originalURL)
 }
