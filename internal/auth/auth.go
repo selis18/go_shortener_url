@@ -2,13 +2,13 @@ package auth
 
 import "context"
 
-type UserId struct{}
+type UserID struct{}
 
-func WithUserId(ctx context.Context, userId string) context.Context {
-	return context.WithValue(ctx, UserId{}, userId)
+func WithUserID(ctx context.Context, userId string) context.Context {
+	return context.WithValue(ctx, UserID{}, userId)
 }
 
-func GetUserId(ctx context.Context) (string, bool) {
-	id, ok := ctx.Value(UserId{}).(string)
+func GetUserID(ctx context.Context) (string, bool) {
+	id, ok := ctx.Value(UserID{}).(string)
 	return id, ok && id != ""
 }

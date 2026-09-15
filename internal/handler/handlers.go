@@ -105,7 +105,7 @@ func (h *HandlerStorage) PostURL(res http.ResponseWriter, req *http.Request) {
 		return
 	}
 	var shortURL string
-	userID, _ := auth.GetUserId(req.Context())
+	userID, _ := auth.GetUserID(req.Context())
 	shortURL, err = h.generateShortURLContext(req.Context(), longURL, userID)
 	status := http.StatusCreated
 	if errors.Is(err, repository.ErrConflict) {
@@ -146,7 +146,7 @@ func (h *HandlerStorage) PostShorten(res http.ResponseWriter, req *http.Request)
 	}
 	var shortURL string
 
-	userID, _ := auth.GetUserId(req.Context())
+	userID, _ := auth.GetUserID(req.Context())
 	shortURL, err = h.generateShortURLContext(req.Context(), request.URL, userID)
 	status := http.StatusCreated
 	if errors.Is(err, repository.ErrConflict) {
@@ -169,7 +169,7 @@ func (h *HandlerStorage) PostShorten(res http.ResponseWriter, req *http.Request)
 }
 
 func (h *HandlerStorage) GetUserURLs(res http.ResponseWriter, req *http.Request) {
-	userID, ok := auth.GetUserId(req.Context())
+	userID, ok := auth.GetUserID(req.Context())
 	if !ok {
 		res.WriteHeader(http.StatusUnauthorized)
 		return

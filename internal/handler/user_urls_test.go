@@ -33,7 +33,7 @@ func TestGetUserURLs(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			r := httptest.NewRequest(http.MethodGet, "/api/user/urls", nil)
-			ctx := auth.WithUserId(r.Context(), tc.user)
+			ctx := auth.WithUserID(r.Context(), tc.user)
 			if tc.cancelled {
 				var cancel context.CancelFunc
 				ctx, cancel = context.WithCancel(ctx)

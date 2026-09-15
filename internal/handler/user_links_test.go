@@ -42,7 +42,7 @@ func TestHandlersPassUserID(t *testing.T) {
 				handle = h.PostShortenBatch
 			}
 			r := httptest.NewRequest(http.MethodPost, "/", strings.NewReader(body))
-			r = r.WithContext(auth.WithUserId(r.Context(), "alice"))
+			r = r.WithContext(auth.WithUserID(r.Context(), "alice"))
 			w := httptest.NewRecorder()
 			handle(w, r)
 			if w.Code != http.StatusCreated {

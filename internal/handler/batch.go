@@ -38,7 +38,7 @@ func (h *HandlerStorage) PostShortenBatch(w http.ResponseWriter, r *http.Request
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
-	userID, _ := auth.GetUserId(r.Context())
+	userID, _ := auth.GetUserID(r.Context())
 	var keys []string
 	var err error
 	for attempt := 0; attempt < 5; attempt++ {
