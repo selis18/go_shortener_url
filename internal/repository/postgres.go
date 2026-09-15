@@ -11,7 +11,7 @@ import (
 
 type PostgresStorage struct{ db *sql.DB }
 
-func (s *PostgresStorage) SaveBatch(ctx context.Context, pairs []URLPair) ([]string, error) {
+func (s *PostgresStorage) SaveBatch(ctx context.Context, pairs []URLPair, userID string) ([]string, error) {
 	keys := make([]string, len(pairs))
 	if err := ctx.Err(); err != nil {
 		return nil, err
@@ -46,6 +46,11 @@ func (s *PostgresStorage) SaveBatch(ctx context.Context, pairs []URLPair) ([]str
 			}
 			return nil, err
 		}
+		if userID != "" {
+			if _, err := tx.ExecContext(ctx, "INSERT INTO user_urls(user_id, short_url) VALUES ($1, $2) ON CONFLICT DO NOTHING", userID, keys[i]); err != nil {
+				return nil, err
+			}
+		}
 	}
 	if err := tx.Commit(); err != nil {
 		return nil, err
@@ -56,24 +61,45 @@ func (s *PostgresStorage) SaveBatch(ctx context.Context, pairs []URLPair) ([]str
 func NewPostgresStorage(db *sql.DB) *PostgresStorage {
 	return &PostgresStorage{db: db}
 }
-func (s *PostgresStorage) Save(k, v string) error { return s.SaveContext(context.Background(), k, v) }
-func (s *PostgresStorage) SaveContext(ctx context.Context, k, v string) error {
+func (s *PostgresStorage) Save(k, v, userID string) error {
+	return s.SaveContext(context.Background(), k, v, userID)
+}
+func (s *PostgresStorage) SaveContext(ctx context.Context, k, v, userID string) error {
 	if v == "" {
 		return ErrShortURLEmpty
 	}
-	_, err := s.db.ExecContext(ctx, `INSERT INTO short_urls(short_url, original_url) VALUES ($1,$2)`, k, v)
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	var key string
+	err = tx.QueryRowContext(ctx, "INSERT INTO short_urls(short_url, original_url) VALUES ($1, $2) ON CONFLICT (original_url) DO NOTHING RETURNING short_url", k, v).Scan(&key)
+	conflict := errors.Is(err, sql.ErrNoRows)
+	if conflict {
+		err = tx.QueryRowContext(ctx, "SELECT short_url FROM short_urls WHERE original_url=$1", v).Scan(&key)
+	}
 	if err != nil {
 		var pqErr *pq.Error
 		if errors.As(err, &pqErr) && pqErr.Code == "23505" {
-			if pqErr.Constraint == "short_urls_original_url_key" {
-				return ErrConflict
-			}
 			return ErrShortURLExists
 		}
 		return err
 	}
+	if userID != "" {
+		if _, err := tx.ExecContext(ctx, "INSERT INTO user_urls(user_id, short_url) VALUES ($1, $2) ON CONFLICT DO NOTHING", userID, key); err != nil {
+			return err
+		}
+	}
+	if err := tx.Commit(); err != nil {
+		return err
+	}
+	if conflict {
+		return ErrConflict
+	}
 	return nil
 }
+
 func (s *PostgresStorage) Get(k string) (string, error) { return s.GetContext(context.Background(), k) }
 func (s *PostgresStorage) GetContext(ctx context.Context, k string) (string, error) {
 	var v string

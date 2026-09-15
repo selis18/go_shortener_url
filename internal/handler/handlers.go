@@ -45,13 +45,13 @@ func generateID() string {
 }
 
 func (h *HandlerStorage) generateShortURL(URL string) (string, error) {
-	return h.generateShortURLContext(context.Background(), URL)
+	return h.generateShortURLContext(context.Background(), URL, "")
 }
-func (h *HandlerStorage) generateShortURLContext(ctx context.Context, URL string) (string, error) {
+func (h *HandlerStorage) generateShortURLContext(ctx context.Context, URL string, userID string) (string, error) {
 	const maxGenerate = 5
 	for gen := 0; gen < maxGenerate; gen++ {
 		shortURL := generateID()
-		err := h.save(ctx, shortURL, URL)
+		err := h.save(ctx, shortURL, URL, userID)
 		if errors.Is(err, repository.ErrConflict) {
 			key, found, findErr := h.find(ctx, URL)
 			if findErr != nil {
@@ -72,11 +72,11 @@ func (h *HandlerStorage) generateShortURLContext(ctx context.Context, URL string
 	}
 	return "", fmt.Errorf("links were not generated after %d attempts", maxGenerate)
 }
-func (h *HandlerStorage) save(ctx context.Context, k, v string) error {
+func (h *HandlerStorage) save(ctx context.Context, k, v, userID string) error {
 	if s, ok := h.storage.(repository.ContextStorage); ok {
-		return s.SaveContext(ctx, k, v)
+		return s.SaveContext(ctx, k, v, userID)
 	}
-	return h.storage.Save(k, v)
+	return h.storage.Save(k, v, userID)
 }
 func (h *HandlerStorage) find(ctx context.Context, v string) (string, bool, error) {
 	if s, ok := h.storage.(repository.ContextStorage); ok {
@@ -105,7 +105,8 @@ func (h *HandlerStorage) PostURL(res http.ResponseWriter, req *http.Request) {
 		return
 	}
 	var shortURL string
-	shortURL, err = h.generateShortURLContext(req.Context(), longURL)
+	userID, _ := auth.GetUserId(req.Context())
+	shortURL, err = h.generateShortURLContext(req.Context(), longURL, userID)
 	status := http.StatusCreated
 	if errors.Is(err, repository.ErrConflict) {
 		status = http.StatusConflict
@@ -145,7 +146,8 @@ func (h *HandlerStorage) PostShorten(res http.ResponseWriter, req *http.Request)
 	}
 	var shortURL string
 
-	shortURL, err = h.generateShortURLContext(req.Context(), request.URL)
+	userID, _ := auth.GetUserId(req.Context())
+	shortURL, err = h.generateShortURLContext(req.Context(), request.URL, userID)
 	status := http.StatusCreated
 	if errors.Is(err, repository.ErrConflict) {
 		status = http.StatusConflict

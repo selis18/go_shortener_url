@@ -283,7 +283,7 @@ func Test_GetUrl(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 
 			for k, v := range test.exist {
-				handler.storage.Save(k, v)
+				handler.storage.Save(k, v, "")
 			}
 			path := "/" + test.id
 

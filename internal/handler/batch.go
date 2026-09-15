@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/selis18/go_shortener_url/internal/auth"
 	"github.com/selis18/go_shortener_url/internal/config"
 	"github.com/selis18/go_shortener_url/internal/model"
 	"github.com/selis18/go_shortener_url/internal/repository"
@@ -37,13 +38,14 @@ func (h *HandlerStorage) PostShortenBatch(w http.ResponseWriter, r *http.Request
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
+	userID, _ := auth.GetUserId(r.Context())
 	var keys []string
 	var err error
 	for attempt := 0; attempt < 5; attempt++ {
 		for i := range pairs {
 			pairs[i].ShortURL = generateID()
 		}
-		keys, err = storage.SaveBatch(r.Context(), pairs)
+		keys, err = storage.SaveBatch(r.Context(), pairs, userID)
 		if !errors.Is(err, repository.ErrShortURLExists) {
 			break
 		}
