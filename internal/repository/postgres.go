@@ -11,6 +11,28 @@ import (
 
 type PostgresStorage struct{ db *sql.DB }
 
+func (s *PostgresStorage) GetUserURLs(ctx context.Context, userID string) ([]URLPair, error) {
+	rows, err := s.db.QueryContext(ctx, `SELECT s.short_url, s.original_url
+		FROM short_urls s JOIN user_urls u ON u.short_url = s.short_url
+		WHERE u.user_id = $1 ORDER BY s.short_url`, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	urls := make([]URLPair, 0)
+	for rows.Next() {
+		var pair URLPair
+		if err := rows.Scan(&pair.ShortURL, &pair.OriginalURL); err != nil {
+			return nil, err
+		}
+		urls = append(urls, pair)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return urls, nil
+}
+
 func (s *PostgresStorage) SaveBatch(ctx context.Context, pairs []URLPair, userID string) ([]string, error) {
 	keys := make([]string, len(pairs))
 	if err := ctx.Err(); err != nil {

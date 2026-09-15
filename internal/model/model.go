@@ -18,6 +18,11 @@ type Response struct {
 	ShortURL string `json:"result"`
 }
 
+type UserURL struct {
+	ShortURL    string `json:"short_url"`
+	OriginalURL string `json:"original_url"`
+}
+
 type JSONStorage struct {
 	UserID      string `json:"user_id"`
 	UUID        string `json:"uuid"`

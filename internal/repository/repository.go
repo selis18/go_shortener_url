@@ -16,7 +16,22 @@ type Storage interface {
 	Save(k string, v string, userID string) error
 	Get(k string) (string, error)
 	FindByValue(v string) (string, bool)
+	GetUserURLs(context.Context, string) ([]URLPair, error)
 }
+
+func (s *StorageRepo) GetUserURLs(ctx context.Context, userID string) ([]URLPair, error) {
+	s.mutex.Lock()
+	defer s.mutex.Unlock()
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	urls := make([]URLPair, 0, len(s.uStorage[userID]))
+	for _, key := range s.uStorage[userID] {
+		urls = append(urls, URLPair{ShortURL: key, OriginalURL: s.storage[key]})
+	}
+	return urls, nil
+}
+
 type ContextStorage interface {
 	SaveContext(context.Context, string, string, string) error
 	GetContext(context.Context, string) (string, error)

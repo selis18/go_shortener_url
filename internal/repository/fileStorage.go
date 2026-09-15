@@ -268,6 +268,10 @@ func (s *FileStorage) SaveBatch(ctx context.Context, pairs []URLPair, userID str
 func (s *FileStorage) Get(shortURL string) (string, error) {
 	return s.GetContext(context.Background(), shortURL)
 }
+
+func (s *FileStorage) GetUserURLs(ctx context.Context, userID string) ([]URLPair, error) {
+	return s.storage.GetUserURLs(ctx, userID)
+}
 func (s *FileStorage) GetContext(ctx context.Context, shortURL string) (string, error) {
 	return s.storage.GetContext(ctx, shortURL)
 }

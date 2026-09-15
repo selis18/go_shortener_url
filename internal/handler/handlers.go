@@ -169,9 +169,29 @@ func (h *HandlerStorage) PostShorten(res http.ResponseWriter, req *http.Request)
 }
 
 func (h *HandlerStorage) GetUserURLs(res http.ResponseWriter, req *http.Request) {
-	_, ok := auth.GetUserId(req.Context())
+	userID, ok := auth.GetUserId(req.Context())
 	if !ok {
 		res.WriteHeader(http.StatusUnauthorized)
+		return
 	}
-
+	urls, err := h.storage.GetUserURLs(req.Context(), userID)
+	if err != nil {
+		res.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+	if len(urls) == 0 {
+		res.WriteHeader(http.StatusNoContent)
+		return
+	}
+	response := make([]model.UserURL, len(urls))
+	for i, pair := range urls {
+		response[i] = model.UserURL{
+			ShortURL:    config.GetFlagHost() + pair.ShortURL,
+			OriginalURL: pair.OriginalURL,
+		}
+	}
+	res.Header().Set("Content-Type", "application/json")
+	if err := json.NewEncoder(res).Encode(response); err != nil {
+		logger.Log.Debug("error encoding user URLs", zap.Error(err))
+	}
 }
