@@ -65,6 +65,7 @@ func startServer(handlers *handler.HandlerStorage, database handler.DatabasePing
 
 	r.Use(logger.RequestLogger)
 	r.Use(gzipMiddleware)
+	r.Use(cookieMiddleware)
 	r.Get("/ping", handler.NewPingHandler(database))
 	r.Route("/", func(r chi.Router) {
 		r.Use(middleware.AllowContentType("text/plain"))
@@ -76,6 +77,7 @@ func startServer(handlers *handler.HandlerStorage, database handler.DatabasePing
 		r.Use(middleware.AllowContentType("application/json"))
 		r.Post("/shorten", handlers.PostShorten)
 		r.Post("/shorten/batch", handlers.PostShortenBatch)
+		r.Get("/user/urls", handlers.GetUserURLs)
 	})
 
 	err := http.ListenAndServe(config.GetFlagAddress(), r)

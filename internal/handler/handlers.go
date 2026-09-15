@@ -103,7 +103,6 @@ func (h *HandlerStorage) PostURL(res http.ResponseWriter, req *http.Request) {
 		res.WriteHeader(http.StatusBadRequest)
 		return
 	}
-
 	var shortURL string
 	shortURL, err = h.generateShortURLContext(req.Context(), longURL)
 	status := http.StatusCreated
@@ -164,4 +163,8 @@ func (h *HandlerStorage) PostShorten(res http.ResponseWriter, req *http.Request)
 		logger.Log.Debug("error encoding response", zap.Error(err))
 		return
 	}
+}
+
+func (h *HandlerStorage) GetUserURLs(res http.ResponseWriter, req *http.Request) {
+
 }

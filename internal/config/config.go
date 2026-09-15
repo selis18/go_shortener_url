@@ -18,6 +18,7 @@ type Config struct {
 	LogLevel        string `env:"LOG_LEVEL"`
 	FileStoragePath string `env:"FILE_STORAGE_PATH"`
 	DatabaseDSN     string `env:"DATABASE_DSN"`
+	SecretKey       string `env:"SECRET_KEY"`
 }
 
 type Address struct {
@@ -51,6 +52,7 @@ var host string = "http://localhost:8080/"
 var level string = "INFO"
 var filePath string
 var databaseDSN string
+var secretKey string
 
 func ParseConfig() {
 	flag.Var(&address, "a", "host and port to start server")
@@ -87,6 +89,11 @@ func ParseConfig() {
 	if !strings.HasSuffix(host, "/") {
 		host += "/"
 	}
+
+	if cfg.SecretKey != "" {
+		secretKey = cfg.SecretKey
+	}
+
 }
 
 func GetFlagAddress() string {
@@ -107,4 +114,8 @@ func GetFileStoragePath() string {
 
 func GetDatabaseDSN() string {
 	return databaseDSN
+}
+
+func GetSecretKey() string {
+	return secretKey
 }
