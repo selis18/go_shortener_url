@@ -12,6 +12,7 @@ import (
 	"strings"
 
 	"github.com/go-chi/chi"
+	"github.com/selis18/go_shortener_url/internal/auth"
 	"github.com/selis18/go_shortener_url/internal/config"
 	"github.com/selis18/go_shortener_url/internal/logger"
 	"github.com/selis18/go_shortener_url/internal/model"
@@ -166,5 +167,9 @@ func (h *HandlerStorage) PostShorten(res http.ResponseWriter, req *http.Request)
 }
 
 func (h *HandlerStorage) GetUserURLs(res http.ResponseWriter, req *http.Request) {
+	_, ok := auth.GetUserId(req.Context())
+	if !ok {
+		res.WriteHeader(http.StatusUnauthorized)
+	}
 
 }

@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/golang-jwt/jwt/v4"
+	"github.com/selis18/go_shortener_url/internal/auth"
 	"github.com/selis18/go_shortener_url/internal/config"
 )
 
@@ -19,30 +20,39 @@ type Claims struct {
 
 func cookieMiddleware(h http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		ow := w
+
+		var id string
+		claims := &Claims{}
 		cookies, err := r.Cookie("userId")
 		if err != nil {
 			log.Println(err)
 		}
 		if cookies == nil {
-			createCookie(ow)
+			cookies, err = createCookie(claims, w)
+			if err != nil {
+				log.Println(err)
+				w.WriteHeader(http.StatusInternalServerError)
+				return
+			}
 		}
-		claims := &Claims{}
 		token, err := jwt.ParseWithClaims(cookies.Value, claims, func(t *jwt.Token) (interface{}, error) {
 			if _, ok := t.Method.(*jwt.SigningMethodHMAC); !ok {
 				return nil, fmt.Errorf("unexpected signing method: %v", t.Header["alg"])
 			}
 			return []byte(config.GetSecretKey()), nil
 		})
-		if err != nil {
-			log.Println(err)
-		}
 
-		if !token.Valid {
-			createCookie(ow)
+		if err != nil || token == nil || !token.Valid {
+			cookies, err = createCookie(claims, w)
+			if err != nil {
+				log.Println(err)
+				w.WriteHeader(http.StatusInternalServerError)
+				return
+			}
 		}
-
-		h.ServeHTTP(ow, r)
+		id = claims.UserID
+		ctx := auth.WithUserId(r.Context(), id)
+		h.ServeHTTP(w, r.WithContext(ctx))
 	})
 }
 
@@ -55,11 +65,12 @@ func makeHexUserId() (string, error) {
 	return hex.EncodeToString(userId), nil
 }
 
-func createCookie(w http.ResponseWriter) (string, error) {
+func createCookie(c *Claims, w http.ResponseWriter) (*http.Cookie, error) {
 	userId, err := makeHexUserId()
 	if err != nil {
-		return "", err
+		return nil, err
 	}
+	c.UserID = userId
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, Claims{
 		RegisteredClaims: jwt.RegisteredClaims{
 			ExpiresAt: jwt.NewNumericDate(time.Now().Add(3 * time.Hour)),
@@ -68,7 +79,7 @@ func createCookie(w http.ResponseWriter) (string, error) {
 	})
 	tokenString, err := token.SignedString([]byte(config.GetSecretKey()))
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 	cookie := &http.Cookie{
 		Name:     "userId",
@@ -79,5 +90,5 @@ func createCookie(w http.ResponseWriter) (string, error) {
 
 	http.SetCookie(w, cookie)
 
-	return userId, nil
+	return cookie, nil
 }
