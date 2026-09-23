@@ -24,6 +24,7 @@ type UserURL struct {
 }
 
 type JSONStorage struct {
+	DeletedFlag bool   `json:"is_deleted"`
 	UserID      string `json:"user_id"`
 	UUID        string `json:"uuid"`
 	ShortURL    string `json:"short_url"`

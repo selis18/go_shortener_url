@@ -78,6 +78,7 @@ func startServer(handlers *handler.HandlerStorage, database handler.DatabasePing
 		r.Post("/shorten", handlers.PostShorten)
 		r.Post("/shorten/batch", handlers.PostShortenBatch)
 		r.Get("/user/urls", handlers.GetUserURLs)
+		r.Delete("/user/urls", handlers.DeleteUserURLs)
 	})
 
 	err := http.ListenAndServe(config.GetFlagAddress(), r)

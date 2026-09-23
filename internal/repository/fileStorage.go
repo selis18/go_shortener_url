@@ -113,8 +113,12 @@ func NewFileStorage(fileName string) (*FileStorage, error) {
 		}
 		if _, exists := storage.storage.storage[item.ShortURL]; !exists {
 			storage.storage.storage[item.ShortURL] = item.OriginalURL
+			storage.storage.owners[item.ShortURL] = item.UserID
 		}
 
+		if item.DeletedFlag {
+			storage.storage.deleted[item.ShortURL] = true
+		}
 		storage.storage.linkUser(item.UserID, item.ShortURL)
 		id, err := strconv.Atoi(item.UUID)
 		if err != nil {
@@ -187,6 +191,9 @@ func (s *FileStorage) SaveContext(ctx context.Context, shortURL string, original
 		return err
 	}
 
+	if !conflict {
+		s.storage.owners[shortURL] = userID
+	}
 	s.storage.storage[shortURL] = originalURL
 	s.storage.linkUser(userID, shortURL)
 	s.nextUUID++
@@ -257,6 +264,7 @@ func (s *FileStorage) SaveBatch(ctx context.Context, pairs []URLPair, userID str
 	}
 	for _, pair := range added {
 		s.storage.storage[pair.ShortURL] = pair.OriginalURL
+		s.storage.owners[pair.ShortURL] = userID
 	}
 	for _, key := range keys {
 		s.storage.linkUser(userID, key)

@@ -58,9 +58,9 @@ func (s *PostgresStorage) SaveBatch(ctx context.Context, pairs []URLPair, userID
 	sort.SliceStable(order, func(i, j int) bool { return pairs[order[i]].OriginalURL < pairs[order[j]].OriginalURL })
 	for _, i := range order {
 		pair := pairs[i]
-		err = tx.QueryRowContext(ctx, `INSERT INTO short_urls(short_url, original_url) VALUES ($1, $2)
+		err = tx.QueryRowContext(ctx, `INSERT INTO short_urls(short_url, original_url, user_id) VALUES ($1, $2, $3)
 			ON CONFLICT (original_url) DO UPDATE SET original_url = EXCLUDED.original_url
-			RETURNING short_url`, pair.ShortURL, pair.OriginalURL).Scan(&keys[i])
+			RETURNING short_url`, pair.ShortURL, pair.OriginalURL, userID).Scan(&keys[i])
 		if err != nil {
 			var pqErr *pq.Error
 			if errors.As(err, &pqErr) && pqErr.Code == "23505" {
@@ -96,7 +96,7 @@ func (s *PostgresStorage) SaveContext(ctx context.Context, k, v, userID string) 
 	}
 	defer tx.Rollback()
 	var key string
-	err = tx.QueryRowContext(ctx, "INSERT INTO short_urls(short_url, original_url) VALUES ($1, $2) ON CONFLICT (original_url) DO NOTHING RETURNING short_url", k, v).Scan(&key)
+	err = tx.QueryRowContext(ctx, "INSERT INTO short_urls(short_url, original_url, user_id) VALUES ($1, $2, $3) ON CONFLICT (original_url) DO NOTHING RETURNING short_url", k, v, userID).Scan(&key)
 	conflict := errors.Is(err, sql.ErrNoRows)
 	if conflict {
 		err = tx.QueryRowContext(ctx, "SELECT short_url FROM short_urls WHERE original_url=$1", v).Scan(&key)
@@ -125,9 +125,13 @@ func (s *PostgresStorage) SaveContext(ctx context.Context, k, v, userID string) 
 func (s *PostgresStorage) Get(k string) (string, error) { return s.GetContext(context.Background(), k) }
 func (s *PostgresStorage) GetContext(ctx context.Context, k string) (string, error) {
 	var v string
-	err := s.db.QueryRowContext(ctx, `SELECT original_url FROM short_urls WHERE short_url=$1`, k).Scan(&v)
+	var deleted bool
+	err := s.db.QueryRowContext(ctx, `SELECT original_url, is_deleted FROM short_urls WHERE short_url=$1`, k).Scan(&v, &deleted)
 	if errors.Is(err, sql.ErrNoRows) {
 		return "", ErrKeyNotFound
+	}
+	if err == nil && deleted {
+		return "", ErrDeleted
 	}
 	return v, err
 }

@@ -10,6 +10,7 @@ import (
 	"math/big"
 	"net/http"
 	"strings"
+	"sync"
 
 	"github.com/go-chi/chi"
 	"github.com/selis18/go_shortener_url/internal/auth"
@@ -21,7 +22,10 @@ import (
 )
 
 type HandlerStorage struct {
-	storage repository.Storage
+	deleteMu       sync.Mutex
+	pendingDeletes []repository.DeleteRequest
+	deleting       bool
+	storage        repository.Storage
 }
 
 func NewHandlerStorage(s repository.Storage) *HandlerStorage {
@@ -125,6 +129,10 @@ func (h *HandlerStorage) PostURL(res http.ResponseWriter, req *http.Request) {
 func (h *HandlerStorage) GetURL(res http.ResponseWriter, req *http.Request) {
 	id := chi.URLParam(req, "id")
 	inputURL, err := h.get(req.Context(), id)
+	if errors.Is(err, repository.ErrDeleted) {
+		res.WriteHeader(http.StatusGone)
+		return
+	}
 	if err == nil {
 		res.Header().Set("Location", inputURL)
 		res.Header().Set("Content-Type", "text/plain")

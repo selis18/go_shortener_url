@@ -53,6 +53,7 @@ func (s *StorageRepo) SaveBatch(ctx context.Context, pairs []URLPair, userID str
 	}
 	for _, pair := range added {
 		s.storage[pair.ShortURL] = pair.OriginalURL
+		s.owners[pair.ShortURL] = userID
 	}
 	for _, key := range keys {
 		s.linkUser(userID, key)

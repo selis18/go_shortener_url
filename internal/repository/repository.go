@@ -10,6 +10,8 @@ var ErrShortURLExists = errors.New("this url already is done")
 var ErrShortURLEmpty = errors.New("url is empty")
 var ErrKeyNotFound = errors.New("the key is not found")
 
+var ErrDeleted = errors.New("URL is deleted")
+
 var ErrConflict = errors.New("original URL already exists")
 
 type Storage interface {
@@ -38,6 +40,8 @@ type ContextStorage interface {
 	FindByValueContext(context.Context, string) (string, bool, error)
 }
 type StorageRepo struct {
+	owners   map[string]string
+	deleted  map[string]bool
 	mutex    sync.Mutex
 	storage  map[string]string
 	uStorage map[string][]string
@@ -46,6 +50,8 @@ type StorageRepo struct {
 func NewStorageRepo() *StorageRepo {
 	return &StorageRepo{
 		storage:  make(map[string]string),
+		owners:   make(map[string]string),
+		deleted:  make(map[string]bool),
 		uStorage: make(map[string][]string),
 	}
 }
@@ -73,6 +79,7 @@ func (s *StorageRepo) SaveContext(ctx context.Context, k string, v string, userI
 	}
 
 	s.storage[k] = v
+	s.owners[k] = userID
 	s.linkUser(userID, k)
 	return nil
 }
@@ -86,6 +93,9 @@ func (s *StorageRepo) GetContext(ctx context.Context, k string) (string, error) 
 	}
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
+	if s.deleted[k] {
+		return "", ErrDeleted
+	}
 	if v, e := s.storage[k]; e {
 		return v, nil
 	}
