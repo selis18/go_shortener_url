@@ -29,6 +29,9 @@ func (s *StorageRepo) GetUserURLs(ctx context.Context, userID string) ([]URLPair
 	}
 	urls := make([]URLPair, 0, len(s.uStorage[userID]))
 	for _, key := range s.uStorage[userID] {
+		if s.deleted[key] {
+			continue
+		}
 		urls = append(urls, URLPair{ShortURL: key, OriginalURL: s.storage[key]})
 	}
 	return urls, nil

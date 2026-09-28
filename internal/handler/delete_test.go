@@ -34,6 +34,14 @@ func TestDeleteIsAsyncAndReturnsGone(t *testing.T) {
 		t.Fatal(err)
 	}
 	h := NewHandlerStorage(s)
+	h.StartDeletionWorkers()
+	t.Cleanup(func() {
+		ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+		defer cancel()
+		if err := h.ShutdownDeletes(ctx); err != nil {
+			t.Errorf("shutdown deletion workers: %v", err)
+		}
+	})
 	ctx, cancel := context.WithCancel(auth.WithUserID(context.Background(), "alice"))
 	defer cancel()
 	r := httptest.NewRequest(http.MethodDelete, "/api/user/urls", strings.NewReader(`["a"]`)).WithContext(ctx)

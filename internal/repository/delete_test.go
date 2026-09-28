@@ -45,6 +45,14 @@ func TestDeleteOwnershipAndPersistence(t *testing.T) {
 			}
 			check := func(s Storage) {
 				t.Helper()
+				urls, err := s.GetUserURLs(ctx, "alice")
+				if err != nil || len(urls) != 0 {
+					t.Fatalf("deleted URLs visible to owner: %v, %v", urls, err)
+				}
+				urls, err = s.GetUserURLs(ctx, "bob")
+				if err != nil || len(urls) != 1 || urls[0] != (URLPair{ShortURL: "b", OriginalURL: "https://b"}) {
+					t.Fatalf("expected only active URL for bob: %v, %v", urls, err)
+				}
 				if _, err := s.Get("a"); !errors.Is(err, ErrDeleted) {
 					t.Fatalf("deleted URL: %v", err)
 				}

@@ -5,8 +5,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/golang-jwt/jwt/v4"
-	"github.com/selis18/go_shortener_url/internal/config"
+	"github.com/selis18/go_shortener_url/internal/auth"
 	"github.com/selis18/go_shortener_url/internal/handler"
 	"github.com/selis18/go_shortener_url/internal/repository"
 )
@@ -16,9 +15,9 @@ func TestUserURLsCookie(t *testing.T) {
 	if err := s.Save("a", "https://a.test", "alice"); err != nil {
 		t.Fatal(err)
 	}
-	h := cookieMiddleware(http.HandlerFunc(handler.NewHandlerStorage(s).GetUserURLs))
+	h := auth.CookieMiddleware(http.HandlerFunc(handler.NewHandlerStorage(s).GetUserURLs))
 	sign := func(id string) string {
-		token, err := jwt.NewWithClaims(jwt.SigningMethodHS256, Claims{UserID: id}).SignedString([]byte(config.GetSecretKey()))
+		token, err := auth.BuildToken(id)
 		if err != nil {
 			t.Fatal(err)
 		}

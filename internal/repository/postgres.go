@@ -14,7 +14,7 @@ type PostgresStorage struct{ db *sql.DB }
 func (s *PostgresStorage) GetUserURLs(ctx context.Context, userID string) ([]URLPair, error) {
 	rows, err := s.db.QueryContext(ctx, `SELECT s.short_url, s.original_url
 		FROM short_urls s JOIN user_urls u ON u.short_url = s.short_url
-		WHERE u.user_id = $1 ORDER BY s.short_url`, userID)
+		WHERE u.user_id = $1 AND s.is_deleted = FALSE ORDER BY s.short_url`, userID)
 	if err != nil {
 		return nil, err
 	}

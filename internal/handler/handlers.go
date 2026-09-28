@@ -10,7 +10,6 @@ import (
 	"math/big"
 	"net/http"
 	"strings"
-	"sync"
 
 	"github.com/go-chi/chi"
 	"github.com/selis18/go_shortener_url/internal/auth"
@@ -22,10 +21,8 @@ import (
 )
 
 type HandlerStorage struct {
-	deleteMu       sync.Mutex
-	pendingDeletes []repository.DeleteRequest
-	deleting       bool
-	storage        repository.Storage
+	deletes *deletePool
+	storage repository.Storage
 }
 
 func NewHandlerStorage(s repository.Storage) *HandlerStorage {
@@ -177,8 +174,8 @@ func (h *HandlerStorage) PostShorten(res http.ResponseWriter, req *http.Request)
 }
 
 func (h *HandlerStorage) GetUserURLs(res http.ResponseWriter, req *http.Request) {
-	userID, ok := auth.GetUserID(req.Context())
-	if !ok {
+	userID, err := auth.GetUserID(req.Context())
+	if err != nil {
 		res.WriteHeader(http.StatusUnauthorized)
 		return
 	}

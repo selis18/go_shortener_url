@@ -5,17 +5,19 @@ import (
 	"encoding/json"
 	"io"
 	"net/http"
+	"sync"
 	"time"
 
 	"github.com/selis18/go_shortener_url/internal/auth"
+	"github.com/selis18/go_shortener_url/internal/config"
 	"github.com/selis18/go_shortener_url/internal/logger"
 	"github.com/selis18/go_shortener_url/internal/repository"
 	"go.uber.org/zap"
 )
 
 func (h *HandlerStorage) DeleteUserURLs(w http.ResponseWriter, r *http.Request) {
-	userID, ok := auth.GetUserID(r.Context())
-	if !ok {
+	userID, err := auth.GetUserID(r.Context())
+	if err != nil {
 		w.WriteHeader(http.StatusUnauthorized)
 		return
 	}
@@ -36,43 +38,156 @@ func (h *HandlerStorage) DeleteUserURLs(w http.ResponseWriter, r *http.Request) 
 			return
 		}
 	}
-	storage, ok := h.storage.(repository.DeleteStorage)
-	if !ok {
+	if h.deletes == nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
-	h.deleteMu.Lock()
-	for _, id := range ids {
-		h.pendingDeletes = append(h.pendingDeletes, repository.DeleteRequest{UserID: userID, ShortURL: id})
+	tasks := make([]repository.DeleteRequest, len(ids))
+	for i, id := range ids {
+		tasks[i] = repository.DeleteRequest{UserID: userID, ShortURL: id}
 	}
-	if !h.deleting && len(h.pendingDeletes) > 0 {
-		h.deleting = true
-		go h.runDeletes(storage)
+	if err := h.deletes.submit(r.Context(), tasks); err != nil {
+		w.WriteHeader(http.StatusServiceUnavailable)
+		return
 	}
-	h.deleteMu.Unlock()
 	w.WriteHeader(http.StatusAccepted)
 }
 
-func (h *HandlerStorage) runDeletes(storage repository.DeleteStorage) {
-	for {
-		time.Sleep(25 * time.Millisecond)
-		h.deleteMu.Lock()
-		if len(h.pendingDeletes) == 0 {
-			h.pendingDeletes = nil
-			h.deleting = false
-			h.deleteMu.Unlock()
-			return
-		}
-		n := min(len(h.pendingDeletes), 1000)
-		batch := h.pendingDeletes[:n:n]
-		h.pendingDeletes = h.pendingDeletes[n:]
-		h.deleteMu.Unlock()
+type deletePool struct {
+	mu     sync.Mutex
+	closed bool
+	input  chan []repository.DeleteRequest
+	done   chan struct{}
+	ctx    context.Context
+	cancel context.CancelFunc
+}
 
-		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-		err := storage.DeleteBatch(ctx, batch)
-		cancel()
-		if err != nil {
-			logger.Log.Error("delete URLs", zap.Error(err))
+func (h *HandlerStorage) StartDeletionWorkers() {
+	if h.deletes != nil {
+		return
+	}
+	if storage, ok := h.storage.(repository.DeleteStorage); ok {
+		h.deletes = newDeletePool(storage, 4, config.GetDeleteBatchSize(), config.GetDeleteFlushInterval())
+	}
+}
+
+func (h *HandlerStorage) ShutdownDeletes(ctx context.Context) error {
+	if h.deletes == nil {
+		return nil
+	}
+	return h.deletes.shutdown(ctx)
+}
+
+func newDeletePool(storage repository.DeleteStorage, workers, batchSize int, interval time.Duration) *deletePool {
+	ctx, cancel := context.WithCancel(context.Background())
+	p := &deletePool{input: make(chan []repository.DeleteRequest, 64), done: make(chan struct{}), ctx: ctx, cancel: cancel}
+	jobs := make(chan []repository.DeleteRequest, workers)
+	// Fan-in: all workers send their results to a single collector.
+	results := make(chan error, workers)
+	var wg sync.WaitGroup
+	wg.Add(workers + 1)
+	go func() {
+		defer wg.Done()
+		defer close(jobs)
+		ticker := time.NewTicker(interval)
+		defer ticker.Stop()
+		batch := make([]repository.DeleteRequest, 0, batchSize)
+		flush := func() bool {
+			if len(batch) == 0 {
+				return true
+			}
+			select {
+			case jobs <- batch:
+				batch = make([]repository.DeleteRequest, 0, batchSize)
+				return true
+			case <-ctx.Done():
+				return false
+			}
 		}
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case tasks, ok := <-p.input:
+				if !ok {
+					flush()
+					return
+				}
+				for _, task := range tasks {
+					batch = append(batch, task)
+					if len(batch) == batchSize && !flush() {
+						return
+					}
+				}
+			case <-ticker.C:
+				if !flush() {
+					return
+				}
+			}
+		}
+	}()
+	for i := 0; i < workers; i++ {
+		go func() {
+			defer wg.Done()
+			for {
+				select {
+				case <-ctx.Done():
+					return
+				case batch, ok := <-jobs:
+					if !ok {
+						return
+					}
+					workCtx, stop := context.WithTimeout(ctx, 5*time.Second)
+					err := storage.DeleteBatch(workCtx, batch)
+					stop()
+					results <- err
+				}
+			}
+		}()
+	}
+	go func() { wg.Wait(); close(results) }()
+	go func() {
+		defer close(p.done)
+		defer cancel()
+		for err := range results {
+			if err != nil {
+				logger.Log.Error("delete URLs", zap.Error(err))
+			}
+		}
+	}()
+	return p
+}
+
+func (p *deletePool) submit(ctx context.Context, tasks []repository.DeleteRequest) error {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	if p.closed {
+		return context.Canceled
+	}
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-p.ctx.Done():
+		return p.ctx.Err()
+	case p.input <- tasks:
+		return nil
+	}
+}
+
+func (p *deletePool) shutdown(ctx context.Context) error {
+	stop := context.AfterFunc(ctx, p.cancel)
+	defer stop()
+	p.mu.Lock()
+	if !p.closed {
+		p.closed = true
+		close(p.input)
+	}
+	p.mu.Unlock()
+	select {
+	case <-p.done:
+		return nil
+	case <-ctx.Done():
+		p.cancel()
+		return ctx.Err()
 	}
 }
