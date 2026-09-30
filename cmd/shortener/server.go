@@ -3,12 +3,17 @@ package main
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"net/http"
+	"os"
+	"os/signal"
+	"syscall"
 	"time"
 
 	"github.com/go-chi/chi"
 	"github.com/go-chi/chi/middleware"
 	_ "github.com/lib/pq"
+	"github.com/selis18/go_shortener_url/internal/auth"
 	"github.com/selis18/go_shortener_url/internal/config"
 	"github.com/selis18/go_shortener_url/internal/handler"
 	"github.com/selis18/go_shortener_url/internal/logger"
@@ -61,10 +66,19 @@ func InitServer() {
 }
 
 func startServer(handlers *handler.HandlerStorage, database handler.DatabasePinger) {
+	handlers.StartDeletionWorkers()
+	defer func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+		if err := handlers.ShutdownDeletes(ctx); err != nil {
+			logger.Log.Error("shutdown deletion workers", zap.Error(err))
+		}
+	}()
 	r := chi.NewRouter()
 
 	r.Use(logger.RequestLogger)
 	r.Use(gzipMiddleware)
+	r.Use(auth.CookieMiddleware)
 	r.Get("/ping", handler.NewPingHandler(database))
 	r.Route("/", func(r chi.Router) {
 		r.Use(middleware.AllowContentType("text/plain"))
@@ -76,10 +90,26 @@ func startServer(handlers *handler.HandlerStorage, database handler.DatabasePing
 		r.Use(middleware.AllowContentType("application/json"))
 		r.Post("/shorten", handlers.PostShorten)
 		r.Post("/shorten/batch", handlers.PostShortenBatch)
+		r.Get("/user/urls", handlers.GetUserURLs)
+		r.Delete("/user/urls", handlers.DeleteUserURLs)
 	})
 
-	err := http.ListenAndServe(config.GetFlagAddress(), r)
-	if err != nil {
-		panic(err)
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+	server := &http.Server{Addr: config.GetFlagAddress(), Handler: r}
+	serverErrors := make(chan error, 1)
+	go func() { serverErrors <- server.ListenAndServe() }()
+	select {
+	case err := <-serverErrors:
+		if !errors.Is(err, http.ErrServerClosed) {
+			logger.Log.Error("HTTP server", zap.Error(err))
+		}
+	case <-ctx.Done():
+		shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+		if err := server.Shutdown(shutdownCtx); err != nil {
+			logger.Log.Error("shutdown HTTP server", zap.Error(err))
+			_ = server.Close()
+		}
 	}
 }

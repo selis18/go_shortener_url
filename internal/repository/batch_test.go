@@ -26,14 +26,14 @@ func TestBatchStorage(t *testing.T) {
 				storage = file
 			}
 			ctx := context.Background()
-			keys, err := storage.SaveBatch(ctx, []URLPair{{"a", "https://a.test"}, {"b", "https://b.test"}, {"c", "https://a.test"}})
+			keys, err := storage.SaveBatch(ctx, []URLPair{{"a", "https://a.test"}, {"b", "https://b.test"}, {"c", "https://a.test"}}, "")
 			if err != nil {
 				t.Fatal(err)
 			}
 			if fmt.Sprint(keys) != "[a b a]" {
 				t.Fatalf("keys: %v", keys)
 			}
-			_, err = storage.SaveBatch(ctx, []URLPair{{"d", "https://d.test"}, {"a", "https://other.test"}})
+			_, err = storage.SaveBatch(ctx, []URLPair{{"d", "https://d.test"}, {"a", "https://other.test"}}, "")
 			if !errors.Is(err, ErrShortURLExists) {
 				t.Fatalf("collision: %v", err)
 			}
@@ -42,7 +42,7 @@ func TestBatchStorage(t *testing.T) {
 			}
 			cancelled, cancel := context.WithCancel(ctx)
 			cancel()
-			if _, err := storage.SaveBatch(cancelled, []URLPair{{"e", "https://e.test"}}); !errors.Is(err, context.Canceled) {
+			if _, err := storage.SaveBatch(cancelled, []URLPair{{"e", "https://e.test"}}, ""); !errors.Is(err, context.Canceled) {
 				t.Fatal(err)
 			}
 			var wg sync.WaitGroup
@@ -50,7 +50,7 @@ func TestBatchStorage(t *testing.T) {
 				wg.Add(1)
 				go func(i int) {
 					defer wg.Done()
-					got, err := storage.SaveBatch(ctx, []URLPair{{fmt.Sprint(i), "https://shared.test"}})
+					got, err := storage.SaveBatch(ctx, []URLPair{{fmt.Sprint(i), "https://shared.test"}}, "")
 					if err != nil {
 						t.Error(err)
 						return
@@ -84,7 +84,7 @@ func TestFileBatchWriteFailure(t *testing.T) {
 		t.Fatal(err)
 	}
 	s.producer.Close()
-	if _, err := s.SaveBatch(context.Background(), []URLPair{{"a", "https://a.test"}}); err == nil {
+	if _, err := s.SaveBatch(context.Background(), []URLPair{{"a", "https://a.test"}}, ""); err == nil {
 		t.Fatal("expected write error")
 	}
 	if _, err := s.Get("a"); !errors.Is(err, ErrKeyNotFound) {

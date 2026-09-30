@@ -12,6 +12,7 @@ import (
 	"strings"
 
 	"github.com/go-chi/chi"
+	"github.com/selis18/go_shortener_url/internal/auth"
 	"github.com/selis18/go_shortener_url/internal/config"
 	"github.com/selis18/go_shortener_url/internal/logger"
 	"github.com/selis18/go_shortener_url/internal/model"
@@ -20,6 +21,7 @@ import (
 )
 
 type HandlerStorage struct {
+	deletes *deletePool
 	storage repository.Storage
 }
 
@@ -44,13 +46,13 @@ func generateID() string {
 }
 
 func (h *HandlerStorage) generateShortURL(URL string) (string, error) {
-	return h.generateShortURLContext(context.Background(), URL)
+	return h.generateShortURLContext(context.Background(), URL, "")
 }
-func (h *HandlerStorage) generateShortURLContext(ctx context.Context, URL string) (string, error) {
+func (h *HandlerStorage) generateShortURLContext(ctx context.Context, URL string, userID string) (string, error) {
 	const maxGenerate = 5
 	for gen := 0; gen < maxGenerate; gen++ {
 		shortURL := generateID()
-		err := h.save(ctx, shortURL, URL)
+		err := h.save(ctx, shortURL, URL, userID)
 		if errors.Is(err, repository.ErrConflict) {
 			key, found, findErr := h.find(ctx, URL)
 			if findErr != nil {
@@ -71,11 +73,11 @@ func (h *HandlerStorage) generateShortURLContext(ctx context.Context, URL string
 	}
 	return "", fmt.Errorf("links were not generated after %d attempts", maxGenerate)
 }
-func (h *HandlerStorage) save(ctx context.Context, k, v string) error {
+func (h *HandlerStorage) save(ctx context.Context, k, v, userID string) error {
 	if s, ok := h.storage.(repository.ContextStorage); ok {
-		return s.SaveContext(ctx, k, v)
+		return s.SaveContext(ctx, k, v, userID)
 	}
-	return h.storage.Save(k, v)
+	return h.storage.Save(k, v, userID)
 }
 func (h *HandlerStorage) find(ctx context.Context, v string) (string, bool, error) {
 	if s, ok := h.storage.(repository.ContextStorage); ok {
@@ -103,9 +105,9 @@ func (h *HandlerStorage) PostURL(res http.ResponseWriter, req *http.Request) {
 		res.WriteHeader(http.StatusBadRequest)
 		return
 	}
-
 	var shortURL string
-	shortURL, err = h.generateShortURLContext(req.Context(), longURL)
+	userID, _ := auth.GetUserID(req.Context())
+	shortURL, err = h.generateShortURLContext(req.Context(), longURL, userID)
 	status := http.StatusCreated
 	if errors.Is(err, repository.ErrConflict) {
 		status = http.StatusConflict
@@ -124,6 +126,10 @@ func (h *HandlerStorage) PostURL(res http.ResponseWriter, req *http.Request) {
 func (h *HandlerStorage) GetURL(res http.ResponseWriter, req *http.Request) {
 	id := chi.URLParam(req, "id")
 	inputURL, err := h.get(req.Context(), id)
+	if errors.Is(err, repository.ErrDeleted) {
+		res.WriteHeader(http.StatusGone)
+		return
+	}
 	if err == nil {
 		res.Header().Set("Location", inputURL)
 		res.Header().Set("Content-Type", "text/plain")
@@ -145,7 +151,8 @@ func (h *HandlerStorage) PostShorten(res http.ResponseWriter, req *http.Request)
 	}
 	var shortURL string
 
-	shortURL, err = h.generateShortURLContext(req.Context(), request.URL)
+	userID, _ := auth.GetUserID(req.Context())
+	shortURL, err = h.generateShortURLContext(req.Context(), request.URL, userID)
 	status := http.StatusCreated
 	if errors.Is(err, repository.ErrConflict) {
 		status = http.StatusConflict
@@ -163,5 +170,33 @@ func (h *HandlerStorage) PostShorten(res http.ResponseWriter, req *http.Request)
 	if err = encoder.Encode(&response); err != nil {
 		logger.Log.Debug("error encoding response", zap.Error(err))
 		return
+	}
+}
+
+func (h *HandlerStorage) GetUserURLs(res http.ResponseWriter, req *http.Request) {
+	userID, err := auth.GetUserID(req.Context())
+	if err != nil {
+		res.WriteHeader(http.StatusUnauthorized)
+		return
+	}
+	urls, err := h.storage.GetUserURLs(req.Context(), userID)
+	if err != nil {
+		res.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+	if len(urls) == 0 {
+		res.WriteHeader(http.StatusNoContent)
+		return
+	}
+	response := make([]model.UserURL, len(urls))
+	for i, pair := range urls {
+		response[i] = model.UserURL{
+			ShortURL:    config.GetFlagHost() + pair.ShortURL,
+			OriginalURL: pair.OriginalURL,
+		}
+	}
+	res.Header().Set("Content-Type", "application/json")
+	if err := json.NewEncoder(res).Encode(response); err != nil {
+		logger.Log.Debug("error encoding user URLs", zap.Error(err))
 	}
 }

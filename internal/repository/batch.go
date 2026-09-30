@@ -8,7 +8,7 @@ type URLPair struct {
 }
 
 type BatchStorage interface {
-	SaveBatch(context.Context, []URLPair) ([]string, error)
+	SaveBatch(context.Context, []URLPair, string) ([]string, error)
 }
 
 func prepareBatch(ctx context.Context, current map[string]string, pairs []URLPair) ([]string, []URLPair, error) {
@@ -44,7 +44,7 @@ func prepareBatch(ctx context.Context, current map[string]string, pairs []URLPai
 	return keys, added, ctx.Err()
 }
 
-func (s *StorageRepo) SaveBatch(ctx context.Context, pairs []URLPair) ([]string, error) {
+func (s *StorageRepo) SaveBatch(ctx context.Context, pairs []URLPair, userID string) ([]string, error) {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 	keys, added, err := prepareBatch(ctx, s.storage, pairs)
@@ -53,6 +53,10 @@ func (s *StorageRepo) SaveBatch(ctx context.Context, pairs []URLPair) ([]string,
 	}
 	for _, pair := range added {
 		s.storage[pair.ShortURL] = pair.OriginalURL
+		s.owners[pair.ShortURL] = userID
+	}
+	for _, key := range keys {
+		s.linkUser(userID, key)
 	}
 	return keys, nil
 }

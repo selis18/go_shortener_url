@@ -10,32 +10,58 @@ var ErrShortURLExists = errors.New("this url already is done")
 var ErrShortURLEmpty = errors.New("url is empty")
 var ErrKeyNotFound = errors.New("the key is not found")
 
+var ErrDeleted = errors.New("URL is deleted")
+
 var ErrConflict = errors.New("original URL already exists")
 
 type Storage interface {
-	Save(k string, v string) error
+	Save(k string, v string, userID string) error
 	Get(k string) (string, error)
 	FindByValue(v string) (string, bool)
+	GetUserURLs(context.Context, string) ([]URLPair, error)
 }
+
+func (s *StorageRepo) GetUserURLs(ctx context.Context, userID string) ([]URLPair, error) {
+	s.mutex.Lock()
+	defer s.mutex.Unlock()
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	urls := make([]URLPair, 0, len(s.uStorage[userID]))
+	for _, key := range s.uStorage[userID] {
+		if s.deleted[key] {
+			continue
+		}
+		urls = append(urls, URLPair{ShortURL: key, OriginalURL: s.storage[key]})
+	}
+	return urls, nil
+}
+
 type ContextStorage interface {
-	SaveContext(context.Context, string, string) error
+	SaveContext(context.Context, string, string, string) error
 	GetContext(context.Context, string) (string, error)
 	FindByValueContext(context.Context, string) (string, bool, error)
 }
 type StorageRepo struct {
-	mutex   sync.Mutex
-	storage map[string]string
+	owners   map[string]string
+	deleted  map[string]bool
+	mutex    sync.Mutex
+	storage  map[string]string
+	uStorage map[string][]string
 }
 
 func NewStorageRepo() *StorageRepo {
 	return &StorageRepo{
-		storage: make(map[string]string),
+		storage:  make(map[string]string),
+		owners:   make(map[string]string),
+		deleted:  make(map[string]bool),
+		uStorage: make(map[string][]string),
 	}
 }
-func (s *StorageRepo) Save(k string, v string) error {
-	return s.SaveContext(context.Background(), k, v)
+func (s *StorageRepo) Save(k string, v string, userID string) error {
+	return s.SaveContext(context.Background(), k, v, userID)
 }
-func (s *StorageRepo) SaveContext(ctx context.Context, k string, v string) error {
+func (s *StorageRepo) SaveContext(ctx context.Context, k string, v string, userID string) error {
 	if err := ctx.Err(); err != nil {
 		return err
 	}
@@ -44,8 +70,9 @@ func (s *StorageRepo) SaveContext(ctx context.Context, k string, v string) error
 	if v == "" {
 		return ErrShortURLEmpty
 	}
-	for _, value := range s.storage {
+	for key, value := range s.storage {
 		if value == v {
+			s.linkUser(userID, key)
 			return ErrConflict
 		}
 	}
@@ -55,6 +82,8 @@ func (s *StorageRepo) SaveContext(ctx context.Context, k string, v string) error
 	}
 
 	s.storage[k] = v
+	s.owners[k] = userID
+	s.linkUser(userID, k)
 	return nil
 }
 
@@ -67,6 +96,9 @@ func (s *StorageRepo) GetContext(ctx context.Context, k string) (string, error) 
 	}
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
+	if s.deleted[k] {
+		return "", ErrDeleted
+	}
 	if v, e := s.storage[k]; e {
 		return v, nil
 	}
@@ -90,4 +122,16 @@ func (s *StorageRepo) FindByValueContext(ctx context.Context, v string) (string,
 		}
 	}
 	return "", false, nil
+}
+
+func (s *StorageRepo) linkUser(userID, key string) {
+	if userID == "" {
+		return
+	}
+	for _, existing := range s.uStorage[userID] {
+		if existing == key {
+			return
+		}
+	}
+	s.uStorage[userID] = append(s.uStorage[userID], key)
 }

@@ -113,8 +113,13 @@ func NewFileStorage(fileName string) (*FileStorage, error) {
 		}
 		if _, exists := storage.storage.storage[item.ShortURL]; !exists {
 			storage.storage.storage[item.ShortURL] = item.OriginalURL
+			storage.storage.owners[item.ShortURL] = item.UserID
 		}
 
+		if item.DeletedFlag {
+			storage.storage.deleted[item.ShortURL] = true
+		}
+		storage.storage.linkUser(item.UserID, item.ShortURL)
 		id, err := strconv.Atoi(item.UUID)
 		if err != nil {
 			return nil, err
@@ -131,10 +136,10 @@ func NewFileStorage(fileName string) (*FileStorage, error) {
 	return &storage, nil
 }
 
-func (s *FileStorage) Save(shortURL string, originalURL string) error {
-	return s.SaveContext(context.Background(), shortURL, originalURL)
+func (s *FileStorage) Save(shortURL string, originalURL string, userID string) error {
+	return s.SaveContext(context.Background(), shortURL, originalURL, userID)
 }
-func (s *FileStorage) SaveContext(ctx context.Context, shortURL string, originalURL string) error {
+func (s *FileStorage) SaveContext(ctx context.Context, shortURL string, originalURL string, userID string) error {
 	if err := ctx.Err(); err != nil {
 		return err
 	}
@@ -148,16 +153,31 @@ func (s *FileStorage) SaveContext(ctx context.Context, shortURL string, original
 	if originalURL == "" {
 		return ErrShortURLEmpty
 	}
-	for _, value := range s.storage.storage {
+	conflict := false
+	for key, value := range s.storage.storage {
 		if value == originalURL {
-			return ErrConflict
+			shortURL = key
+			conflict = true
+			break
 		}
 	}
-	if _, exists := s.storage.storage[shortURL]; exists {
-		return ErrShortURLExists
+	if !conflict {
+		if _, exists := s.storage.storage[shortURL]; exists {
+			return ErrShortURLExists
+		}
+	} else {
+		if userID == "" {
+			return ErrConflict
+		}
+		for _, key := range s.storage.uStorage[userID] {
+			if key == shortURL {
+				return ErrConflict
+			}
+		}
 	}
 
 	u := &model.JSONStorage{
+		UserID:      userID,
 		UUID:        strconv.Itoa(s.nextUUID),
 		ShortURL:    shortURL,
 		OriginalURL: originalURL,
@@ -171,8 +191,15 @@ func (s *FileStorage) SaveContext(ctx context.Context, shortURL string, original
 		return err
 	}
 
+	if !conflict {
+		s.storage.owners[shortURL] = userID
+	}
 	s.storage.storage[shortURL] = originalURL
+	s.storage.linkUser(userID, shortURL)
 	s.nextUUID++
+	if conflict {
+		return ErrConflict
+	}
 	return nil
 }
 
@@ -194,7 +221,7 @@ func (s *FileStorage) appendBatch(data []byte) error {
 	return nil
 }
 
-func (s *FileStorage) SaveBatch(ctx context.Context, pairs []URLPair) ([]string, error) {
+func (s *FileStorage) SaveBatch(ctx context.Context, pairs []URLPair, userID string) ([]string, error) {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 	s.storage.mutex.Lock()
@@ -203,11 +230,28 @@ func (s *FileStorage) SaveBatch(ctx context.Context, pairs []URLPair) ([]string,
 	if err != nil {
 		return nil, err
 	}
+	// Persist both new URLs and new ownership of existing URLs.
+	records := append([]URLPair(nil), added...)
+	seen := make(map[string]bool)
+	for _, pair := range added {
+		seen[pair.ShortURL] = true
+	}
+	if userID != "" {
+		for _, key := range s.storage.uStorage[userID] {
+			seen[key] = true
+		}
+		for i, key := range keys {
+			if !seen[key] {
+				records = append(records, URLPair{ShortURL: key, OriginalURL: pairs[i].OriginalURL})
+				seen[key] = true
+			}
+		}
+	}
 	var data bytes.Buffer
 	encoder := json.NewEncoder(&data)
-	for i, pair := range added {
+	for i, pair := range records {
 		if err := encoder.Encode(model.JSONStorage{
-			UUID: strconv.Itoa(s.nextUUID + i), ShortURL: pair.ShortURL, OriginalURL: pair.OriginalURL,
+			UserID: userID, UUID: strconv.Itoa(s.nextUUID + i), ShortURL: pair.ShortURL, OriginalURL: pair.OriginalURL,
 		}); err != nil {
 			return nil, err
 		}
@@ -220,13 +264,21 @@ func (s *FileStorage) SaveBatch(ctx context.Context, pairs []URLPair) ([]string,
 	}
 	for _, pair := range added {
 		s.storage.storage[pair.ShortURL] = pair.OriginalURL
+		s.storage.owners[pair.ShortURL] = userID
 	}
-	s.nextUUID += len(added)
+	for _, key := range keys {
+		s.storage.linkUser(userID, key)
+	}
+	s.nextUUID += len(records)
 	return keys, nil
 }
 
 func (s *FileStorage) Get(shortURL string) (string, error) {
 	return s.GetContext(context.Background(), shortURL)
+}
+
+func (s *FileStorage) GetUserURLs(ctx context.Context, userID string) ([]URLPair, error) {
+	return s.storage.GetUserURLs(ctx, userID)
 }
 func (s *FileStorage) GetContext(ctx context.Context, shortURL string) (string, error) {
 	return s.storage.GetContext(ctx, shortURL)
